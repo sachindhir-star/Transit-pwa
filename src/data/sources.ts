@@ -66,8 +66,8 @@ export const DATA_SOURCES = {
   osrm: {
     name: "OSRM (OpenStreetMap routing)",
     url: "https://project-osrm.org/",
-    coverage: "Driving geometry between consecutive operator stops when no official bus polyline is published",
+    coverage: "Driving geometry for bus stop sequences; foot/pedestrian geometry for walk legs",
     liveGps: false,
-    note: "Citybus/KMB/DBTSL lack official polylines. Ordered stop coords + OSRM road snap for locked CTB/KMB legs and DB bus map. ETA markers follow that polyline and stay labeled ETA-inferred.",
+    note: "Citybus/KMB/DBTSL lack official polylines. Ordered stop coords + OSRM driving snap for locked CTB/KMB legs and DB bus map; WALK legs use OSRM foot (labeled approximate chord if foot fails). ETA markers follow the bus polyline and stay labeled ETA-inferred.",
   },
 } as const;

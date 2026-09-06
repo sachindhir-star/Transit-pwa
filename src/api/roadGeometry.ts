@@ -6,6 +6,8 @@ export interface LatLng {
   lng: number;
 }
 
+export type OsrmProfile = "driving" | "foot";
+
 export type SnapSource = "osrm" | "mixed" | "stop-chords";
 
 export interface SnapResult {
@@ -28,19 +30,27 @@ function distM(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-function osrmCandidates(coordsPath: string, params: string): string[] {
+/**
+ * Prefer same-origin Vite proxy (`/api/osrm` → project-osrm.org) for preview CORS,
+ * then fall back to the public OSRM host. Profile is driving (bus) or foot (walk).
+ */
+function osrmCandidates(
+  coordsPath: string,
+  params: string,
+  profile: OsrmProfile,
+): string[] {
   const qs = `?${params}`;
-  const publicUrl = `https://router.project-osrm.org/route/v1/driving/${coordsPath}${qs}`;
-  // Prefer same-origin Vite proxy when available (dev + preview); fall back to public OSRM.
-  return [`/api/osrm/route/v1/driving/${coordsPath}${qs}`, publicUrl];
+  const publicUrl = `https://router.project-osrm.org/route/v1/${profile}/${coordsPath}${qs}`;
+  return [`/api/osrm/route/v1/${profile}/${coordsPath}${qs}`, publicUrl];
 }
 
 async function fetchOsrmRoute(
   coordsPath: string,
+  profile: OsrmProfile = "driving",
 ): Promise<[number, number][] | null> {
   const params = "overview=full&geometries=geojson";
   let lastErr: unknown;
-  for (const url of osrmCandidates(coordsPath, params)) {
+  for (const url of osrmCandidates(coordsPath, params, profile)) {
     try {
       const data = await fetchJson<{
         code?: string;
@@ -52,15 +62,19 @@ async function fetchOsrmRoute(
       lastErr = e;
     }
   }
-  if (lastErr) console.warn("OSRM fetch failed", lastErr);
+  if (lastErr) console.warn(`OSRM ${profile} fetch failed`, lastErr);
   return null;
 }
 
 /** One stop→stop leg via OSRM, with one retry after a short pause. */
-async function snapSegment(a: LatLng, b: LatLng): Promise<LatLng[] | null> {
+async function snapSegment(
+  a: LatLng,
+  b: LatLng,
+  profile: OsrmProfile,
+): Promise<LatLng[] | null> {
   const path = `${a.lng},${a.lat};${b.lng},${b.lat}`;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const coords = await fetchOsrmRoute(path);
+    const coords = await fetchOsrmRoute(path, profile);
     if (coords?.length) {
       return coords.map(([lng, lat]) => ({ lat, lng }));
     }
@@ -72,11 +86,14 @@ async function snapSegment(a: LatLng, b: LatLng): Promise<LatLng[] | null> {
 }
 
 /**
- * Snap an ordered stop sequence to the driving road network via OSRM.
+ * Snap an ordered stop sequence to the OSRM network (driving or foot).
  * Snaps consecutive stop pairs (retrying each) so a long multi-waypoint call
  * cannot silently collapse the whole route to stop-to-stop chords.
  */
-export async function snapStopsToRoadsDetailed(stops: LatLng[]): Promise<SnapResult> {
+export async function snapStopsToRoadsDetailed(
+  stops: LatLng[],
+  profile: OsrmProfile = "driving",
+): Promise<SnapResult> {
   const clean = stops.filter(
     (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0),
   );
@@ -95,7 +112,7 @@ export async function snapStopsToRoadsDetailed(stops: LatLng[]): Promise<SnapRes
   // Try a single multi-waypoint call first (fast when it works).
   if (deduped.length <= 40) {
     const path = deduped.map((p) => `${p.lng},${p.lat}`).join(";");
-    const coords = await fetchOsrmRoute(path);
+    const coords = await fetchOsrmRoute(path, profile);
     if (coords && coords.length >= deduped.length) {
       return {
         points: coords.map(([lng, lat]) => ({ lat, lng })),
@@ -117,7 +134,10 @@ export async function snapStopsToRoadsDetailed(stops: LatLng[]): Promise<SnapRes
     for (let j = i; j < Math.min(deduped.length - 1, i + CONCURRENCY); j++) {
       const idx = j;
       batch.push(
-        snapSegment(deduped[idx], deduped[idx + 1]).then((line) => ({ idx, line })),
+        snapSegment(deduped[idx], deduped[idx + 1], profile).then((line) => ({
+          idx,
+          line,
+        })),
       );
     }
     const results = await Promise.all(batch);
@@ -145,9 +165,17 @@ export async function snapStopsToRoadsDetailed(stops: LatLng[]): Promise<SnapRes
   };
 }
 
-/** Backward-compatible helper used by CTB/KMB enrich. */
+/** Backward-compatible helper used by CTB/KMB enrich (driving roads). */
 export async function snapStopsToRoads(stops: LatLng[]): Promise<LatLng[]> {
-  return (await snapStopsToRoadsDetailed(stops)).points;
+  return (await snapStopsToRoadsDetailed(stops, "driving")).points;
+}
+
+/** Snap a walk A→B via OSRM foot profile (footpaths / pedestrian network). */
+export async function snapWalkToFootpathsDetailed(
+  from: LatLng,
+  to: LatLng,
+): Promise<SnapResult> {
+  return snapStopsToRoadsDetailed([from, to], "foot");
 }
 
 /** Turn dense lat/lngs into StopPoint shape vertices for the map / ETA place-along. */

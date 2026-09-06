@@ -10,6 +10,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { APPROX_WALK_NOTE } from "../api/enrichShape";
 import { inferBusesFromEta } from "../lib/inferBus";
 import { formatEtaLabel } from "../lib/formatEta";
 import type { InferredBus, LiveEta, TripOption } from "../types";
@@ -42,6 +43,10 @@ interface Props {
   activeLegIndex: number;
 }
 
+function isApproxWalk(notes?: string) {
+  return !!notes?.includes(APPROX_WALK_NOTE);
+}
+
 export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Props) {
   const leg = trip.legs[activeLegIndex] ?? trip.legs[0];
   const shape = leg?.shape ?? [];
@@ -57,6 +62,8 @@ export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Pr
     if (leg?.trackingMode !== "live-eta") return [];
     return inferBusesFromEta(shape, etas);
   }, [leg, shape, etas]);
+
+  const walkApprox = leg?.trackingMode === "walk" && isApproxWalk(leg.notes);
 
   return (
     <section className="map-panel">
@@ -79,8 +86,10 @@ export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Pr
           </span>
         ) : leg?.trackingMode === "mtr-hint" ? (
           <span className="banner">MTR connecting hint — not live train positions</span>
+        ) : walkApprox ? (
+          <span className="banner warn">Approximate walk (no footpath geometry)</span>
         ) : (
-          <span className="banner">Walking leg</span>
+          <span className="banner">Walking leg · footpath geometry</span>
         )}
       </div>
       <div className="map-wrap">
@@ -95,17 +104,21 @@ export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Pr
             url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <FitBounds positions={allPoints.length ? allPoints : line} />
-          {trip.legs.map((l, idx) => (
-            <Polyline
-              key={idx}
-              positions={l.shape.map((s) => [s.lat, s.lng] as [number, number])}
-              pathOptions={{
-                color: idx === activeLegIndex ? "#c45c26" : "#a38b78",
-                weight: idx === activeLegIndex ? 5 : 3,
-                opacity: idx === activeLegIndex ? 0.95 : 0.45,
-              }}
-            />
-          ))}
+          {trip.legs.map((l, idx) => {
+            const approx = l.trackingMode === "walk" && isApproxWalk(l.notes);
+            return (
+              <Polyline
+                key={idx}
+                positions={l.shape.map((s) => [s.lat, s.lng] as [number, number])}
+                pathOptions={{
+                  color: idx === activeLegIndex ? "#c45c26" : "#a38b78",
+                  weight: idx === activeLegIndex ? 5 : 3,
+                  opacity: idx === activeLegIndex ? 0.95 : 0.45,
+                  dashArray: approx ? "6 8" : undefined,
+                }}
+              />
+            );
+          })}
           {shape[0] && (
             <CircleMarker
               center={[shape[0].lat, shape[0].lng]}
