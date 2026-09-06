@@ -170,6 +170,12 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
   font-size: 0.8rem;
   white-space: nowrap;
 }
+.pill-live { background: #1a4f7a; }
+.pill-empty, .pill-schedule {
+  background: #efe6dc;
+  color: #5c4a3a;
+  border: 1px solid var(--line);
+}
 .option-meta { display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: 0.85rem; }
 .tag {
   background: #eee4d8;
@@ -306,6 +312,50 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
 }
 .db-track-banner.live-gps { background: #e8f7ee; color: var(--ok); }
 .db-track-banner.eta-inferred { background: #eef6ff; color: #1a4f7a; }
+.db-track-banner.schedule { background: #fff4e0; color: var(--warn); }
+.db-timetable {
+  background: #fffaf3;
+  border: 1px solid #e7c4a8;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+.db-timetable-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #5c4a3a;
+}
+.db-timetable-note { margin: 0; }
+.db-timetable-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.db-timetable-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.88rem;
+}
+.db-timetable-clock { font-weight: 700; font-variant-numeric: tabular-nums; }
+.db-timetable-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #8a6a4a;
+  background: #efe6dc;
+  border-radius: 999px;
+  padding: 2px 6px;
+}
 .db-map-wrap { height: 320px; }
 .db-stop-list {
   margin: 0;
