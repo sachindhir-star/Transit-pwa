@@ -28,7 +28,7 @@ export default defineConfig({
         navigateFallback: "index.html",
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/(data\.etabus\.gov\.hk|rt\.data\.gov\.hk|router\.project-osrm\.org)\/.*/i,
+            urlPattern: /^https:\/\/(data\.etabus\.gov\.hk|rt\.data\.gov\.hk|router\.project-osrm\.org|eta\.dbtsl\.com)\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "hk-transit-api",

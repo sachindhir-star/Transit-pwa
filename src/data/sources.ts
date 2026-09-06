@@ -16,10 +16,10 @@ export const DATA_SOURCES = {
   },
   dbBus: {
     name: "Discovery Bay buses (DBTSL)",
-    url: "https://www.hkdb.com.hk/ / operator notices",
-    coverage: "Internal DB routes (C4/C9 etc.) and external DB0x links",
+    url: "https://eta.dbtsl.com/",
+    coverage: "Internal DB routes (C4/C9 etc.) and external DB0x links via official ETA WebView",
     liveGps: false,
-    note: "No public vehicle GPS or open ETA API (proprietary DB Transport app only). DB Buses tab shows curated shapes + honest schedule labeling — never fake dots.",
+    note: "Semi-public stop-ETA JSON at eta.dbtsl.com/api/v0 (CORS open; used inside Discovery Bay app). Fields: stop lat/lng, predicted time[], trip_code (incl. plate), people_cnt. No vehicle-position / GPS endpoint — map dots are ETA-inferred at the next stop only.",
   },
   dbFerry: {
     name: "DB ↔ Central Ferry",

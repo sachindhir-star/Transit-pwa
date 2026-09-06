@@ -10,7 +10,7 @@ Vite + React + TypeScript + PWA.
 1. **From → To planner** — curated corridors with bus/ferry/MTR legs, boarding & alight stops, time + adult Octopus fare estimates, walk legs. From/To support **address & building search** (HK ALS + Nominatim).
 2. **Favourites** (localStorage, pre-seeded): DB↔Central, Central→Wan Chai, Sunny Bay→Mong Kok / Sham Shui Po, DB→Tung Chung / Airport, and more.
 3. **Locked-route map** — operator stop sequences snapped to **roads via OSRM** on **key-free OSM tiles**. When KMB/Citybus ETA is available, buses are shown as **ETA-inferred** positions along that polyline. **Never fake GPS.**
-4. **DB buses tab** — Discovery Bay map focused on C4 / C9 and other internal routes. DBTSL has no public GPS; UI is honest schedule/shape only (no fake dots).
+4. **DB buses tab** — Discovery Bay map focused on C4 / C9. Live **stop ETAs** from `eta.dbtsl.com` (official app feed). **No vehicle GPS** — dots are ETA-inferred at the next stop and labeled honestly.
 
 Coverage: Discovery Bay, HK Island, Kowloon, Lantau (Sunny Bay / Tung Chung).
 Operators: KMB, Citybus, DB buses, Lantau routes; **DB↔Central ferry is first-class**.
@@ -36,6 +36,8 @@ Dev proxies:
 - /api/ctb → https://rt.data.gov.hk/v2/transport/citybus
 - /api/osrm → https://router.project-osrm.org
 
+DBTSL ETA is called directly (CORS `*`): `https://eta.dbtsl.com/api/v0/get_bus_stops`
+
 ```
 bun run build && bun run preview
 ```
@@ -51,7 +53,8 @@ bun run build && bun run preview
 - KMB/LWB: data.etabus.gov.hk/v1/transport/kmb
 - Citybus: rt.data.gov.hk/v2/transport/citybus
 - Route geometry: operator stop order + OSRM road snap (no official shapes in ETA/GTFS)
-- DB bus / DB ferry: schedule fallbacks (no open ETA/GPS) — see Data tab
+- DB bus: eta.dbtsl.com stop-ETA JSON (no vehicle GPS) — see Data tab
+- DB ferry: schedule fallbacks (no open vessel GPS)
 - MTR: connecting hints only
 
 ## Deploy

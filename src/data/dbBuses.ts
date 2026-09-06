@@ -30,8 +30,9 @@ const s = (
 ): StopPoint => ({ id, name, lat, lng, nameZh });
 
 /**
- * Curated DB internal route shapes (ALS / map centres).
- * DBTSL has no public vehicle GPS or open ETA API — trackingMode is schedule.
+ * Curated DB internal route shapes (ALS / map centres) as offline fallback.
+ * Live stop ETAs come from https://eta.dbtsl.com (official app WebView).
+ * No vehicle GPS endpoint — C4/C9 use trackingMode eta-inferred.
  */
 export const DB_BUS_ROUTES: DbBusRoute[] = [
   {
@@ -43,9 +44,9 @@ export const DB_BUS_ROUTES: DbBusRoute[] = [
     fareHkd: 6.8,
     headwayMin: 12,
     featured: true,
-    trackingMode: "schedule",
+    trackingMode: "eta-inferred",
     trackingNote:
-      "DBTSL C4 — no public live GPS or open ETA feed. Route shape is curated; no fake bus dots.",
+      "DBTSL C4 — live stop ETAs from eta.dbtsl.com (same feed as Discovery Bay app). No vehicle GPS; map dots are ETA-inferred at the next stop.",
     stops: [
       s("c4-1", "Coastline Villa", 22.29434, 114.02334, "碧濤軒"),
       s("c4-2", "La Costa / Marina Drive", 22.29566, 114.02039, "海澄湖畔"),
@@ -72,9 +73,9 @@ export const DB_BUS_ROUTES: DbBusRoute[] = [
     fareHkd: 6.8,
     headwayMin: 12,
     featured: true,
-    trackingMode: "schedule",
+    trackingMode: "eta-inferred",
     trackingNote:
-      "DBTSL C9 — no public live GPS or open ETA feed. Route shape is curated; no fake bus dots.",
+      "DBTSL C9 — live stop ETAs from eta.dbtsl.com (same feed as Discovery Bay app). No vehicle GPS; map dots are ETA-inferred at the next stop.",
     stops: [
       s("c9-1", "Crestmont Villa", 22.29681, 114.02343, "翠山灣"),
       s("c9-2", "La Costa", 22.29566, 114.02039, "海澄湖畔"),

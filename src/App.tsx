@@ -101,7 +101,7 @@ export default function App() {
           </ul>
           <p className="note">
             Adult Octopus fares are estimates. Never invent GPS — live dots only when an ETA feed
-            exists, and they are labeled ETA-inferred. DBTSL internal buses have no public GPS.
+            exists, and they are labeled ETA-inferred. DBTSL C4/C9 use eta.dbtsl.com stop ETAs (no vehicle GPS).
           </p>
         </main>
       ) : tab === "db" ? (
