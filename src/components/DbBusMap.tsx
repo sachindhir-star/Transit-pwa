@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CircleMarker,
   MapContainer,
@@ -16,12 +16,11 @@ import {
   DB_MAP_ZOOM,
 } from "../data/dbBuses";
 import {
-  DBTSL_ETA_QUERIES,
   dbtslStopsToPoints,
-  fetchDbtslBusStops,
   inferDbtslBusesOnRoad,
-  type DbtslStopEta,
 } from "../api/dbtslEta";
+import { BusColumnBoard } from "./BusColumnBoard";
+import { useDbtslLive } from "../hooks/useDbtslLive";
 import {
   snapStopsToRoadsDetailed,
   type LatLng,
@@ -35,8 +34,6 @@ import {
 } from "../lib/dbSuggest";
 import { useGeolocation } from "../hooks/useGeolocation";
 import type { InferredBus, StopPoint } from "../types";
-
-const POLL_MS = 20_000;
 
 function FitDb({
   points,
@@ -97,15 +94,6 @@ function userIcon() {
   });
 }
 
-function formatAgo(updatedAtMs: number | null, nowMs: number): string {
-  if (updatedAtMs == null) return "";
-  const sec = Math.max(0, Math.floor((nowMs - updatedAtMs) / 1000));
-  if (sec < 3) return "Updated just now";
-  if (sec < 60) return `Updated ${sec}s ago`;
-  const min = Math.floor(sec / 60);
-  return `Updated ${min}m ago`;
-}
-
 function geometryLabel(source: SnapSource | null, busy: boolean): string {
   if (busy) return "Snapping route to roads (OSRM)…";
   if (source === "osrm") return "Path: OSRM road-following between ordered stops";
@@ -114,66 +102,6 @@ function geometryLabel(source: SnapSource | null, busy: boolean): string {
   if (source === "stop-chords")
     return "Path: stop-to-stop chords (OSRM unavailable) — not a full road shape";
   return "";
-}
-
-function useDbtslLive(routeNumber: string) {
-  const query = DBTSL_ETA_QUERIES[routeNumber];
-  const [stops, setStops] = useState<DbtslStopEta[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [updatedAtMs, setUpdatedAtMs] = useState<number | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [tick, setTick] = useState(() => Date.now());
-  const gen = useRef(0);
-
-  const load = useCallback(async (manual = false) => {
-    if (!query) {
-      setStops(null);
-      setError(null);
-      setUpdatedAtMs(null);
-      return;
-    }
-    const my = ++gen.current;
-    if (manual) setRefreshing(true);
-    try {
-      const rows = await fetchDbtslBusStops(query);
-      if (my !== gen.current) return;
-      setStops(rows);
-      setError(null);
-      setUpdatedAtMs(Date.now());
-    } catch (e) {
-      if (my !== gen.current) return;
-      console.warn("DBTSL ETA fetch failed", e);
-      setError("ETA feed unavailable — showing seeded stop list");
-    } finally {
-      if (my === gen.current && manual) setRefreshing(false);
-    }
-  }, [query]);
-
-  useEffect(() => {
-    void load(false);
-    const id = window.setInterval(() => void load(false), POLL_MS);
-    return () => {
-      gen.current += 1;
-      window.clearInterval(id);
-    };
-  }, [load]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => setTick(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const agoLabel = formatAgo(updatedAtMs, tick);
-
-  return {
-    query,
-    stops,
-    error,
-    updatedAtMs,
-    agoLabel,
-    refreshing,
-    refresh: () => void load(true),
-  };
 }
 
 export function DbBusMap() {
@@ -329,7 +257,8 @@ export function DbBusMap() {
           Discovery Bay internal + external DBTSL routes (C4/C9/6, DB01R/DB02R…). Paths snap
           consecutive operator stops to <strong>OSRM driving roads</strong> — not stop-to-stop
           chords. Bus icons use <strong>eta.dbtsl.com</strong> stop ETAs (no vehicle GPS).
-          Auto-refreshes every 20s. Your GPS suggests nearest stop + likely direction.
+          Below the map, the <strong>C4 · C9 board</strong> shows one column per active bus with
+          fixed landmarks. Auto-refreshes every 20s. Your GPS suggests nearest stop + likely direction.
         </p>
       </div>
 
@@ -528,6 +457,8 @@ export function DbBusMap() {
           ) : null}
         </MapContainer>
       </div>
+
+      <BusColumnBoard />
 
       <div className="db-stop-list-head">
         <h3>
