@@ -19,7 +19,7 @@ export const DATA_SOURCES = {
     url: "https://eta.dbtsl.com/",
     coverage: "Internal DB routes (C4/C9 etc.) and external DB0x links via official ETA WebView",
     liveGps: false,
-    note: "Semi-public stop-ETA JSON at eta.dbtsl.com/api/v0 (CORS open; used inside Discovery Bay app). Fields: stop lat/lng, predicted time[], trip_code (incl. plate), people_cnt. No vehicle-position / GPS endpoint — map dots are ETA-inferred at the next stop only.",
+    note: "Semi-public stop-ETA JSON at eta.dbtsl.com/api/v0 (CORS open; used inside Discovery Bay app). Fields: stop lat/lng, predicted time[], trip_code (incl. plate), people_cnt. No vehicle-position / GPS endpoint — map uses ordered stops + OSRM road geometry; bus icons are ETA-inferred along the road toward the next stop (with heading), never Live GPS. Poll ~20s + manual Refresh.",
   },
   dbFerry: {
     name: "DB ↔ Central Ferry",
@@ -54,6 +54,6 @@ export const DATA_SOURCES = {
     url: "https://project-osrm.org/",
     coverage: "Driving geometry between consecutive operator stops when no official bus polyline is published",
     liveGps: false,
-    note: "Citybus/KMB ETA APIs and TD GTFS lack shapes.txt. Locked bus legs use ordered stop coords, then OSRM road snap. ETA dots follow that polyline and stay labeled ETA-inferred.",
+    note: "Citybus/KMB/DBTSL lack official polylines. Ordered stop coords + OSRM road snap for locked CTB/KMB legs and DB bus map. ETA markers follow that polyline and stay labeled ETA-inferred.",
   },
 } as const;

@@ -77,4 +77,7 @@ export interface InferredBus {
   etaMinutes: number;
   label: string;
   mode: "eta-inferred";
+  /** Degrees clockwise from north — road heading toward next stop. */
+  heading?: number;
+  nextStopName?: string;
 }

@@ -1,5 +1,7 @@
 import { fetchJson } from "./client";
+import type { LatLng } from "./roadGeometry";
 import { formatEtaLabel } from "../lib/formatEta";
+import { placeApproachingStop } from "../lib/placeAlong";
 import type { InferredBus, StopPoint } from "../types";
 
 /** Official DBTSL ETA site used inside the Discovery Bay app WebView. CORS is open. */
@@ -72,18 +74,18 @@ export async function fetchDbtslBusStops(
   return row.stops ?? [];
 }
 
-/**
- * Place one ETA-inferred marker per active trip at the next stop that still
- * has a future arrival. Stop lat/lng come from the operator feed — never GPS
- * of the vehicle itself (no vehicle-position endpoint exists).
- */
-export function inferDbtslBusesFromStops(stops: DbtslStopEta[]): InferredBus[] {
-  const byTrip = new Map<
-    string,
-    { stop: DbtslStopEta; etaIso: string; minutes: number }
-  >();
+interface TripHit {
+  stopIndex: number;
+  stop: DbtslStopEta;
+  etaIso: string;
+  minutes: number;
+}
 
-  for (const stop of stops) {
+/** Per active trip: next stop with the soonest future ETA. */
+function nextStopsByTrip(stops: DbtslStopEta[]): Map<string, TripHit> {
+  const byTrip = new Map<string, TripHit>();
+  for (let si = 0; si < stops.length; si++) {
+    const stop = stops[si];
     for (let i = 0; i < stop.trip_code.length; i++) {
       const trip = stop.trip_code[i];
       const etaIso = stop.time[i];
@@ -91,12 +93,22 @@ export function inferDbtslBusesFromStops(stops: DbtslStopEta[]): InferredBus[] {
       const minutes = minutesUntil(etaIso);
       if (minutes == null || minutes < -2) continue;
       const prev = byTrip.get(trip);
-      if (!prev || minutes < prev.minutes) {
-        byTrip.set(trip, { stop, etaIso, minutes: Math.max(0, minutes) });
+      const mins = Math.max(0, minutes);
+      if (!prev || mins < prev.minutes) {
+        byTrip.set(trip, { stopIndex: si, stop, etaIso, minutes: mins });
       }
     }
   }
+  return byTrip;
+}
 
+/**
+ * Place one ETA-inferred marker per active trip at the next stop that still
+ * has a future arrival. Stop lat/lng come from the operator feed — never GPS
+ * of the vehicle itself (no vehicle-position endpoint exists).
+ */
+export function inferDbtslBusesFromStops(stops: DbtslStopEta[]): InferredBus[] {
+  const byTrip = nextStopsByTrip(stops);
   const buses: InferredBus[] = [];
   for (const [trip, hit] of byTrip) {
     const { plate } = parseTripCode(trip);
@@ -107,6 +119,45 @@ export function inferDbtslBusesFromStops(stops: DbtslStopEta[]): InferredBus[] {
       etaMinutes: hit.minutes,
       label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop} · ETA-inferred (not GPS)`,
       mode: "eta-inferred",
+      nextStopName: hit.stop.stop,
+    });
+  }
+  return buses;
+}
+
+/**
+ * Same ETA next-stop inference, but place the icon on the road-following
+ * polyline slightly upstream of the next stop, with heading toward it.
+ */
+export function inferDbtslBusesOnRoad(
+  stops: DbtslStopEta[],
+  road: LatLng[],
+): InferredBus[] {
+  const byTrip = nextStopsByTrip(stops);
+  const buses: InferredBus[] = [];
+  for (const [trip, hit] of byTrip) {
+    const { plate } = parseTripCode(trip);
+    const next = { lat: hit.stop.latitude, lng: hit.stop.longitude };
+    const prevStop = hit.stopIndex > 0 ? stops[hit.stopIndex - 1] : null;
+    const prev = prevStop
+      ? { lat: prevStop.latitude, lng: prevStop.longitude }
+      : null;
+    const placed =
+      road.length >= 2
+        ? placeApproachingStop(road, next, prev, hit.minutes)
+        : null;
+    const lat = placed?.lat ?? next.lat;
+    const lng = placed?.lng ?? next.lng;
+    const heading = placed?.heading;
+    buses.push({
+      id: `dbtsl-${trip}`,
+      lat,
+      lng,
+      etaMinutes: hit.minutes,
+      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop} · ETA-inferred (not GPS)`,
+      mode: "eta-inferred",
+      heading,
+      nextStopName: hit.stop.stop,
     });
   }
   return buses;
