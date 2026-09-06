@@ -81,8 +81,10 @@ export function nearestCtbStops(
   opts: { limit?: number; maxMetres?: number } = {},
 ): CtbNearStop[] {
   if (!index) return [];
-  const limit = opts.limit ?? 12;
-  const maxMetres = opts.maxMetres ?? 550;
+  // Dense hubs (IFC / Central / MK) have 40–60+ stops within 600m; a low
+  // top-N cut drops corridor boarding stops (e.g. 104 at Pottinger St ranks ~16).
+  const limit = opts.limit ?? 40;
+  const maxMetres = opts.maxMetres ?? 650;
   const out: CtbNearStop[] = [];
   for (const stop of Object.values(index.stops)) {
     const m = haversineM({ lat, lng }, stop);
@@ -119,10 +121,10 @@ export function findCtbDirectLegs(
   opts: { maxMetres?: number; limit?: number } = {},
 ): CtbDirectLeg[] {
   if (!index || !stopToRoutes) return [];
-  const maxMetres = opts.maxMetres ?? 550;
+  const maxMetres = opts.maxMetres ?? 650;
   const limit = opts.limit ?? 8;
-  const nearFrom = nearestCtbStops(from.lat, from.lng, { maxMetres, limit: 14 });
-  const nearTo = nearestCtbStops(to.lat, to.lng, { maxMetres, limit: 14 });
+  const nearFrom = nearestCtbStops(from.lat, from.lng, { maxMetres, limit: 40 });
+  const nearTo = nearestCtbStops(to.lat, to.lng, { maxMetres, limit: 40 });
   if (!nearFrom.length || !nearTo.length) return [];
 
   const toById = new Map(nearTo.map((n) => [n.stop.id, n]));

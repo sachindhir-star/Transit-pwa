@@ -673,7 +673,7 @@ const PAIR_BUILDERS: Record<string, () => TripOption[]> = {
 /** Nearby place clusters for fuzzy corridor matching */
 const CLUSTERS: Record<string, string[]> = {
   db: ["db-plaza", "db-ferry", "db-north", "db-park"],
-  central: ["central-pier3", "exchange-square", "central-mtr", "admiralty"],
+  central: ["central-pier3", "exchange-square", "central-mtr", "admiralty", "ifc-mall", "sheung-wan"],
   wanchai: ["wan-chai", "exhibition", "causeway-bay"],
 };
 
@@ -756,27 +756,32 @@ export function planTrips(fromRaw: Place, toRaw: Place): TripOption[] {
   if (fc === "central" && tc === "wanchai") return PAIR_BUILDERS[pairKey("central-mtr", "wan-chai")]();
   if (fc === "wanchai" && tc === "central") return PAIR_BUILDERS[pairKey("wan-chai", "central-mtr")]();
 
-  // Generic cross-area hint
-  return [
-    {
-      id: `generic-${fromRaw.id}-${toRaw.id}`,
-      summary: `Suggested: local bus/MTR toward ${toRaw.name} (limited corridor data)`,
-      totalMin: 45,
-      totalFareHkd: 12,
-      legs: [
-        {
-          mode: "WALK",
-          fromStop: asStop(fromRaw),
-          toStop: asStop(toRaw),
-          shape: [asStop(fromRaw), asStop(toRaw)],
-          durationMin: 45,
-          fareHkd: 12,
-          notes:
-            "This pair is outside the curated MVP corridors. Try favourites (DB↔Central, Sunny Bay↔MK/SSP) or pick nearby hubs. KMB/Citybus ETA still works when you lock a bus leg with operator stop IDs.",
-          trackingMode: "schedule",
-        },
-      ],
-      tags: ["fallback"],
-    },
-  ];
+  // Outside curated pairs: do NOT invent a long walk (e.g. Island↔Kowloon).
+  // HK-wide open-data matching in hkPlanner handles these; return empty here.
+  const gapM = haversineKm(fromRaw, toRaw) * 1000;
+  if (gapM <= 900) {
+    const mins = Math.max(3, Math.round(gapM / 80));
+    return [
+      {
+        id: `walk-${fromRaw.id}-${toRaw.id}`,
+        summary: `Walk ${fromRaw.name} → ${toRaw.name}`,
+        totalMin: mins,
+        totalFareHkd: 0,
+        legs: [
+          {
+            mode: "WALK",
+            fromStop: asStop(fromRaw),
+            toStop: asStop(toRaw),
+            shape: [asStop(fromRaw), asStop(toRaw)],
+            durationMin: mins,
+            fareHkd: 0,
+            notes: "Nearby places — short walk.",
+            trackingMode: "walk",
+          },
+        ],
+        tags: ["walk"],
+      },
+    ];
+  }
+  return [];
 }

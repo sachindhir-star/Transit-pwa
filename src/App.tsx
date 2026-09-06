@@ -34,6 +34,7 @@ export default function App() {
     }
     let cancelled = false;
     setPlanStatus("loading");
+    setOptions([]);
     setSelected(null);
     planTripsAsync(from, to)
       .then((opts) => {

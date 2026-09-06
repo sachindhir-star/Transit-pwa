@@ -242,6 +242,16 @@ export const PLACES: Place[] = [
     kind: "mtr",
   },
   {
+    id: "ifc-mall",
+    name: "IFC Mall",
+    nameZh: "國際金融中心商場",
+    area: "Island",
+    lat: 22.28475,
+    lng: 114.15802,
+    aliases: ["ifc", "ifc mall", "international finance centre", "香港站", "hkifcmall"],
+    kind: "area",
+  },
+  {
     id: "pacific-place",
     name: "Pacific Place (Admiralty)",
     nameZh: "太古廣場",

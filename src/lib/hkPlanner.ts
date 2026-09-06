@@ -143,8 +143,8 @@ function wrapWithWalks(
 }
 
 function findDirectBusOptions(from: Place, to: Place, limit = 5): TripOption[] {
-  const ctb = findCtbDirectLegs(from, to, { maxMetres: 600, limit: 6 });
-  const kmb = findKmbDirectLegs(from, to, { maxMetres: 600, limit: 6 });
+  const ctb = findCtbDirectLegs(from, to, { maxMetres: 700, limit: 8 });
+  const kmb = findKmbDirectLegs(from, to, { maxMetres: 700, limit: 8 });
   const opts: TripOption[] = [];
 
   for (const d of ctb) {
@@ -539,41 +539,86 @@ export async function planTripsAsync(from: Place, to: Place): Promise<TripOption
     if (mtr) options.push(mtr);
   }
 
-  options = dedupeOptions(options);
+  options = dedupeOptions(options).filter((o) => {
+    const walkOnly = o.legs.length > 0 && o.legs.every((l) => l.mode === "WALK");
+    if (!walkOnly) return true;
+    const gap = Math.max(...o.legs.map((l) => haversineM(l.fromStop, l.toStop)));
+    return gap <= 900; // drop curated "outside MVP" harbour walks
+  });
 
   // Prefer live bus / ferry before vague hints; then by time
   const rank = (o: TripOption) => {
     const hasLive = o.legs.some((l) => l.trackingMode === "live-eta");
     const hasFerry = o.legs.some((l) => l.mode === "FERRY");
-    const isMtrOnly = o.tags?.includes("mtr") && !hasLive;
+    const hasBus = o.legs.some((l) => l.mode === "CTB" || l.mode === "KMB");
+    const walkOnly = o.legs.every((l) => l.mode === "WALK");
+    const longWalkOnly =
+      walkOnly &&
+      o.legs.some((l) => haversineM(l.fromStop, l.toStop) > 900);
+    const isMtrOnly = o.tags?.includes("mtr") && !hasLive && !hasBus;
     const isBackup = o.tags?.includes("backup");
+    const isFallback = o.tags?.includes("fallback");
     const night = o.legs.some((l) => /^N\d/i.test(l.route ?? ""));
     let score = o.totalMin;
     if (hasLive) score -= 8;
+    if (hasBus) score -= 6;
     if (hasFerry && fromDb) score -= 12;
     if (isMtrOnly) score += 15;
     if (isBackup) score += 25;
+    if (isFallback) score += 50;
+    if (longWalkOnly) score += 500; // never prefer cross-harbour / long walks
     if (night) score += 40;
     return score;
   };
 
   options.sort((a, b) => rank(a) - rank(b));
 
+  // Never present a harbour-crossing / long walk as a "route". Prefer MTR hint;
+  // only keep a short walk when places are genuinely close.
   if (!options.length) {
+    const mtr = mtrHintOption(from, to);
+    if (mtr) return [mtr];
+    const gapM = haversineM(from, to);
+    if (gapM <= 900) {
+      return [
+        {
+          id: `walk-near-${from.id}-${to.id}`,
+          summary: `Walk ${from.name} → ${to.name}`,
+          totalMin: walkMinFromM(gapM),
+          totalFareHkd: 0,
+          legs: [
+            walkLeg(
+              placeStop(from),
+              placeStop(to),
+              "Short walk — no shared Citybus/KMB boarding pair found nearby.",
+            ),
+          ],
+          tags: ["walk", "fallback"],
+        },
+      ];
+    }
     return [
       {
         id: `empty-${from.id}-${to.id}`,
-        summary: `No bus match yet for ${from.name} → ${to.name}`,
-        totalMin: 40,
+        summary: `No open-data bus match for ${from.name} → ${to.name}`,
+        totalMin: Math.max(20, Math.round(haversineKm(from, to) * 3)),
         totalFareHkd: 0,
         legs: [
-          walkLeg(
-            placeStop(from),
-            placeStop(to),
-            "Open-data stop match found no shared Citybus/KMB route within walking range. Try a nearby hub (MTR station / bus terminus) or check MTR.",
-          ),
+          {
+            mode: "MTR",
+            route: "—",
+            routeName: "No matched Citybus/KMB corridor yet",
+            fromStop: placeStop(from),
+            toStop: placeStop(to),
+            shape: [placeStop(from), placeStop(to)],
+            durationMin: Math.max(20, Math.round(haversineKm(from, to) * 3)),
+            fareHkd: 0,
+            notes:
+              "Open-data stop match found no shared Citybus/KMB route within walking range. Try a nearby hub (MTR / bus terminus) — not a walkable corridor.",
+            trackingMode: "mtr-hint",
+          },
         ],
-        tags: ["fallback"],
+        tags: ["fallback", "no-match"],
       },
     ];
   }

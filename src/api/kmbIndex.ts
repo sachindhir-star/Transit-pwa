@@ -125,8 +125,9 @@ export function nearestKmbStops(
   opts: { limit?: number; maxMetres?: number } = {},
 ): KmbNearStop[] {
   if (!ready) return [];
-  const limit = opts.limit ?? 12;
-  const maxMetres = opts.maxMetres ?? 550;
+  // Same dense-hub issue as CTB: keep enough candidates within walking range.
+  const limit = opts.limit ?? 40;
+  const maxMetres = opts.maxMetres ?? 650;
   const out: KmbNearStop[] = [];
   for (const stop of stops) {
     const m = haversineM({ lat, lng }, stop);
@@ -153,10 +154,10 @@ export function findKmbDirectLegs(
   opts: { maxMetres?: number; limit?: number } = {},
 ): KmbDirectLeg[] {
   if (!ready) return [];
-  const maxMetres = opts.maxMetres ?? 550;
+  const maxMetres = opts.maxMetres ?? 650;
   const limit = opts.limit ?? 8;
-  const nearFrom = nearestKmbStops(from.lat, from.lng, { maxMetres, limit: 14 });
-  const nearTo = nearestKmbStops(to.lat, to.lng, { maxMetres, limit: 14 });
+  const nearFrom = nearestKmbStops(from.lat, from.lng, { maxMetres, limit: 40 });
+  const nearTo = nearestKmbStops(to.lat, to.lng, { maxMetres, limit: 40 });
   if (!nearFrom.length || !nearTo.length) return [];
 
   const toById = new Map(nearTo.map((n) => [n.stop.id, n]));
