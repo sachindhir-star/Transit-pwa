@@ -258,7 +258,7 @@ export function DbBusMap() {
           consecutive operator stops to <strong>OSRM driving roads</strong> — not stop-to-stop
           chords. Bus icons use <strong>eta.dbtsl.com</strong> stop ETAs (no vehicle GPS).
           Below the map, selecting <strong>C4</strong> or <strong>C9</strong> shows that route&apos;s
-          column board (one column per active bus, fixed landmarks). Auto-refreshes every 20s. Your GPS
+          column board (one column per active bus, all stops in route order). Auto-refreshes every 20s. Your GPS
           suggests nearest stop + likely direction.
         </p>
       </div>

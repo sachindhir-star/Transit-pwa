@@ -507,18 +507,21 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
 }
 .bcb-column {
   flex: 0 0 auto;
-  width: min(148px, 42vw);
+  width: min(168px, 46vw);
+  max-height: min(70vh, 560px);
   background: var(--card);
   border: 1px solid #e7d3bf;
   border-radius: 12px;
   padding: 8px 8px 10px;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
 }
 .bcb-col-head {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  flex-shrink: 0;
 }
 .bcb-plate {
   font-weight: 800;
@@ -535,11 +538,18 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
   display: grid;
   grid-template-columns: 18px 1fr;
   gap: 6px;
-  min-height: 168px;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 2px;
 }
 .bcb-track {
   position: relative;
-  margin: 10px 0;
+  margin: 6px 0;
+  align-self: stretch;
 }
 .bcb-track-line {
   position: absolute;
@@ -571,9 +581,8 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
 .bcb-stops {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  min-height: 168px;
-  padding: 2px 0;
+  gap: 8px;
+  padding: 2px 0 6px;
 }
 .bcb-stop {
   display: grid;
@@ -588,6 +597,7 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 0 2px #f3e0d2;
+  flex-shrink: 0;
 }
 .bcb-stop.passed .bcb-stop-dot { background: #b7a08c; }
 .bcb-stop.passed .bcb-stop-name { color: var(--muted); }
@@ -598,11 +608,12 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
 }
 .bcb-stop-name {
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   line-height: 1.2;
+  word-break: break-word;
 }
 .bcb-stop-eta {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: #1a4f7a;
   font-weight: 600;
   line-height: 1.25;

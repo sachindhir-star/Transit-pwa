@@ -4,22 +4,22 @@ import {
   C4_BOARD,
   C9_BOARD,
   type BusColumnModel,
-  type LandmarkEta,
+  type ColumnStopEta,
   type RouteBoardDef,
 } from "../lib/busColumnBoard";
 import { useDbtslLive } from "../hooks/useDbtslLive";
 
-function LandmarkRow({ lm }: { lm: LandmarkEta }) {
+function StopRow({ stop }: { stop: ColumnStopEta }) {
   return (
     <div
-      className={`bcb-stop ${lm.passed ? "passed" : ""} ${lm.etaLabel ? "has-eta" : ""}`}
-      title={lm.feedName ?? lm.label}
+      className={`bcb-stop ${stop.passed ? "passed" : ""} ${stop.etaLabel ? "has-eta" : ""}`}
+      title={stop.label}
     >
       <span className="bcb-stop-dot" aria-hidden />
       <div className="bcb-stop-text">
-        <span className="bcb-stop-name">{lm.label}</span>
+        <span className="bcb-stop-name">{stop.label}</span>
         <span className="bcb-stop-eta">
-          {lm.etaLabel ?? (lm.passed ? "Passed" : "—")}
+          {stop.etaLabel ?? (stop.passed ? "Passed" : "—")}
         </span>
       </div>
     </div>
@@ -46,8 +46,8 @@ function BusColumn({ col }: { col: BusColumnModel }) {
           </div>
         </div>
         <div className="bcb-stops">
-          {col.landmarks.map((lm) => (
-            <LandmarkRow key={lm.id} lm={lm} />
+          {col.stops.map((stop) => (
+            <StopRow key={stop.stopIndex} stop={stop} />
           ))}
         </div>
       </div>
@@ -63,8 +63,7 @@ function boardDefFor(routeNumber: string): RouteBoardDef | null {
 
 /**
  * Glanceable per-route board for C4 or C9 (never both at once).
- * One vertical column per active trip; fixed landmarks
- * Coastline/Crestmont → Main Plaza → North Plaza.
+ * One vertical column per active trip; all stops in get_bus_stops order.
  */
 export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
   const def = boardDefFor(routeNumber);
@@ -79,6 +78,7 @@ export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
 
   const loading = !live.stops && !live.error;
   const title = `${def.route} board`;
+  const stopCount = columns[0]?.stops.length ?? live.stops?.length ?? 0;
 
   return (
     <section className="bcb" aria-label={title}>
@@ -86,8 +86,8 @@ export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
         <div>
           <h3 className="bcb-title">{title}</h3>
           <p className="note">
-            One column per active bus · fixed landmarks · clock ETA + mins · blue
-            dot is ETA-inferred (not Live GPS)
+            One column per active bus · all {stopCount || "route"} stops · clock
+            ETA + mins · blue dot is ETA-inferred (not Live GPS)
           </p>
         </div>
         <div className="db-live-controls">
