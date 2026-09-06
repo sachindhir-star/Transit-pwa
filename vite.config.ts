@@ -72,5 +72,22 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5178,
     allowedHosts: true,
+    proxy: {
+      "/api/kmb": {
+        target: "https://data.etabus.gov.hk",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/kmb/, "/v1/transport/kmb"),
+      },
+      "/api/ctb": {
+        target: "https://rt.data.gov.hk",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/ctb/, "/v2/transport/citybus"),
+      },
+      "/api/osrm": {
+        target: "https://router.project-osrm.org",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/osrm/, ""),
+      },
+    },
   },
 });

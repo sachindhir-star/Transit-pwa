@@ -29,7 +29,10 @@ interface DbtslStopsResponse {
   stops: DbtslStopEta[];
 }
 
-/** Known queries for routes we surface on the DB buses tab. */
+/**
+ * Keys match DbBusRoute.number (resident-facing labels).
+ * `route` is the eta.dbtsl.com code (01R, 02R, 6, C4, …).
+ */
 export const DBTSL_ETA_QUERIES: Record<string, DbtslRouteQuery> = {
   C4: { route: "C4", destination: "DB Circle", variant: "1) Normal Route" },
   C9: { route: "C9", destination: "DB Circle", variant: "1) Normal Route" },
@@ -39,7 +42,15 @@ export const DBTSL_ETA_QUERIES: Record<string, DbtslRouteQuery> = {
   "5": { route: "5", destination: "La Serene Circular", variant: "1) Normal Route" },
   "6": { route: "6", destination: "Seabee Lane Circular", variant: "1) Normal Route" },
   "15": { route: "15", destination: "DB Plaza", variant: "1) Normal Route" },
-  "18": { route: "18", destination: "DB Plaza", variant: "1) Normal Route" },
+  "18": { route: "18", destination: "IL PICCO", variant: "1) Normal Route" },
+  DB01R: { route: "01R", destination: "Tung Chung Station", variant: "1 Normal Route" },
+  DB01A: { route: "01A", destination: "Tung Chung Station", variant: "1) Normal Route" },
+  DB01P: { route: "01P", destination: "Tung Chung Station", variant: "1 from Club Siena Opp" },
+  DB02R: { route: "02R", destination: "Airport Circular", variant: "1) Normal Route" },
+  DB02A: { route: "02A", destination: "Airport Circular", variant: "1) Normal Route" },
+  DB03R: { route: "03R", destination: "Sunny Bay Station", variant: "1 Normal Route" },
+  DB03P: { route: "03P", destination: "Sunny Bay Station", variant: "1) Normal Route" },
+  DB08R: { route: "N08R", destination: "Central", variant: "1) Normal Route" },
 };
 
 function minutesUntil(iso: string): number | null {

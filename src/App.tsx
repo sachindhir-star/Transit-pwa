@@ -101,7 +101,7 @@ export default function App() {
           </ul>
           <p className="note">
             Adult Octopus fares are estimates. Never invent GPS — live dots only when an ETA feed
-            exists, and they are labeled ETA-inferred. DBTSL C4/C9 use eta.dbtsl.com stop ETAs (no vehicle GPS).
+            exists, and they are labeled ETA-inferred. DBTSL routes (C4/C9/6, DB01R/DB02R, …) use eta.dbtsl.com stop ETAs + OSRM roads (no vehicle GPS).
           </p>
         </main>
       ) : tab === "db" ? (
@@ -191,7 +191,7 @@ export default function App() {
       )}
 
       <footer className="foot">
-        Sample: DB Plaza → Central Pier 3 · DB buses tab for C4 / C9 · Add to Home Screen
+        Sample: DB Plaza → Central Pier 3 · DB buses: C4/C9/6 · DB01R/DB02R · Add to Home Screen
       </footer>
     </div>
   );

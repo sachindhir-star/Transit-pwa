@@ -6,12 +6,13 @@ export interface LatLng {
   lng: number;
 }
 
-function osrmUrl(coordsPath: string, params: string): string {
-  const isDev = import.meta.env.DEV;
-  const base = isDev
-    ? `/api/osrm/route/v1/driving/${coordsPath}`
-    : `https://router.project-osrm.org/route/v1/driving/${coordsPath}`;
-  return `${base}?${params}`;
+export type SnapSource = "osrm" | "mixed" | "stop-chords";
+
+export interface SnapResult {
+  points: LatLng[];
+  source: SnapSource;
+  osrmSegments: number;
+  failedSegments: number;
 }
 
 /** Haversine distance in metres. */
@@ -27,51 +28,126 @@ function distM(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+function osrmCandidates(coordsPath: string, params: string): string[] {
+  const qs = `?${params}`;
+  const publicUrl = `https://router.project-osrm.org/route/v1/driving/${coordsPath}${qs}`;
+  // Prefer same-origin Vite proxy when available (dev + preview); fall back to public OSRM.
+  return [`/api/osrm/route/v1/driving/${coordsPath}${qs}`, publicUrl];
+}
+
+async function fetchOsrmRoute(
+  coordsPath: string,
+): Promise<[number, number][] | null> {
+  const params = "overview=full&geometries=geojson";
+  let lastErr: unknown;
+  for (const url of osrmCandidates(coordsPath, params)) {
+    try {
+      const data = await fetchJson<{
+        code?: string;
+        routes?: { geometry?: { coordinates?: [number, number][] } }[];
+      }>(url);
+      const coords = data.routes?.[0]?.geometry?.coordinates;
+      if (data.code === "Ok" && coords && coords.length >= 2) return coords;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (lastErr) console.warn("OSRM fetch failed", lastErr);
+  return null;
+}
+
+/** One stop→stop leg via OSRM, with one retry after a short pause. */
+async function snapSegment(a: LatLng, b: LatLng): Promise<LatLng[] | null> {
+  const path = `${a.lng},${a.lat};${b.lng},${b.lat}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const coords = await fetchOsrmRoute(path);
+    if (coords?.length) {
+      return coords.map(([lng, lat]) => ({ lat, lng }));
+    }
+    if (attempt === 0) {
+      await new Promise((r) => setTimeout(r, 180));
+    }
+  }
+  return null;
+}
+
 /**
  * Snap an ordered stop sequence to the driving road network via OSRM.
- * Prefer operator open-data stop order first; OSRM only fills geometry between stops
- * (no official Citybus/KMB polyline in the ETA APIs / TD GTFS).
+ * Snaps consecutive stop pairs (retrying each) so a long multi-waypoint call
+ * cannot silently collapse the whole route to stop-to-stop chords.
  */
-export async function snapStopsToRoads(stops: LatLng[]): Promise<LatLng[]> {
+export async function snapStopsToRoadsDetailed(stops: LatLng[]): Promise<SnapResult> {
   const clean = stops.filter(
     (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0),
   );
-  if (clean.length < 2) return clean;
+  if (clean.length < 2) {
+    return { points: clean, source: "stop-chords", osrmSegments: 0, failedSegments: 0 };
+  }
 
-  // Dedupe near-identical consecutive points (OSRM dislikes zero-length legs)
   const deduped: LatLng[] = [clean[0]];
   for (let i = 1; i < clean.length; i++) {
     if (distM(deduped[deduped.length - 1], clean[i]) > 8) deduped.push(clean[i]);
   }
-  if (deduped.length < 2) return clean;
+  if (deduped.length < 2) {
+    return { points: clean, source: "stop-chords", osrmSegments: 0, failedSegments: 0 };
+  }
 
-  // OSRM public demo: keep waypoint count modest; chunk long corridors
-  const CHUNK = 40;
-  const parts: LatLng[] = [];
-  for (let start = 0; start < deduped.length - 1; start += CHUNK - 1) {
-    const chunk = deduped.slice(start, Math.min(deduped.length, start + CHUNK));
-    if (chunk.length < 2) break;
-    try {
-      const path = chunk.map((p) => `${p.lng},${p.lat}`).join(";");
-      const data = await fetchJson<{
-        code?: string;
-        routes?: { geometry?: { coordinates?: [number, number][] } }[];
-      }>(osrmUrl(path, "overview=full&geometries=geojson"));
-      const coords = data.routes?.[0]?.geometry?.coordinates;
-      if (!coords?.length) continue;
-      const latlngs = coords.map(([lng, lat]) => ({ lat, lng }));
-      if (parts.length && latlngs.length) {
-        // Avoid duplicating the shared chunk join vertex
-        parts.push(...latlngs.slice(1));
-      } else {
-        parts.push(...latlngs);
-      }
-    } catch (e) {
-      console.warn("OSRM snap chunk failed", e);
+  // Try a single multi-waypoint call first (fast when it works).
+  if (deduped.length <= 40) {
+    const path = deduped.map((p) => `${p.lng},${p.lat}`).join(";");
+    const coords = await fetchOsrmRoute(path);
+    if (coords && coords.length >= deduped.length) {
+      return {
+        points: coords.map(([lng, lat]) => ({ lat, lng })),
+        source: "osrm",
+        osrmSegments: deduped.length - 1,
+        failedSegments: 0,
+      };
     }
   }
 
-  return parts.length >= 2 ? parts : clean;
+  // Segment-by-segment with limited concurrency.
+  const parts: LatLng[] = [{ ...deduped[0] }];
+  let osrmSegments = 0;
+  let failedSegments = 0;
+  const CONCURRENCY = 4;
+
+  for (let i = 0; i < deduped.length - 1; i += CONCURRENCY) {
+    const batch: Promise<{ idx: number; line: LatLng[] | null }>[] = [];
+    for (let j = i; j < Math.min(deduped.length - 1, i + CONCURRENCY); j++) {
+      const idx = j;
+      batch.push(
+        snapSegment(deduped[idx], deduped[idx + 1]).then((line) => ({ idx, line })),
+      );
+    }
+    const results = await Promise.all(batch);
+    results.sort((a, b) => a.idx - b.idx);
+    for (const { idx, line } of results) {
+      if (line && line.length >= 2) {
+        osrmSegments += 1;
+        parts.push(...line.slice(1));
+      } else {
+        failedSegments += 1;
+        // Labeled fallback: keep the straight stop chord for this segment only.
+        parts.push({ ...deduped[idx + 1] });
+      }
+    }
+  }
+
+  const source: SnapSource =
+    failedSegments === 0 ? "osrm" : osrmSegments === 0 ? "stop-chords" : "mixed";
+
+  return {
+    points: parts.length >= 2 ? parts : clean,
+    source,
+    osrmSegments,
+    failedSegments,
+  };
+}
+
+/** Backward-compatible helper used by CTB/KMB enrich. */
+export async function snapStopsToRoads(stops: LatLng[]): Promise<LatLng[]> {
+  return (await snapStopsToRoadsDetailed(stops)).points;
 }
 
 /** Turn dense lat/lngs into StopPoint shape vertices for the map / ETA place-along. */

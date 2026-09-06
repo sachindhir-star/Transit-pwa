@@ -17,7 +17,7 @@ export const DATA_SOURCES = {
   dbBus: {
     name: "Discovery Bay buses (DBTSL)",
     url: "https://eta.dbtsl.com/",
-    coverage: "Internal DB routes (C4/C9 etc.) and external DB0x links via official ETA WebView",
+    coverage: "Internal DB routes (1/2/3/5/6/15/18/C4/C9) and external DB01R/DB02R/DB03R/DB08R via official ETA WebView",
     liveGps: false,
     note: "Semi-public stop-ETA JSON at eta.dbtsl.com/api/v0 (CORS open; used inside Discovery Bay app). Fields: stop lat/lng, predicted time[], trip_code (incl. plate), people_cnt. No vehicle-position / GPS endpoint — map uses ordered stops + OSRM road geometry; bus icons are ETA-inferred along the road toward the next stop (with heading), never Live GPS. Poll ~20s + manual Refresh.",
   },

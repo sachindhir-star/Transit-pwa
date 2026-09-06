@@ -22,7 +22,11 @@ import {
   inferDbtslBusesOnRoad,
   type DbtslStopEta,
 } from "../api/dbtslEta";
-import { snapStopsToRoads, type LatLng } from "../api/roadGeometry";
+import {
+  snapStopsToRoadsDetailed,
+  type LatLng,
+  type SnapSource,
+} from "../api/roadGeometry";
 import { formatEtaLabel } from "../lib/formatEta";
 import type { InferredBus, StopPoint } from "../types";
 
@@ -75,6 +79,16 @@ function formatAgo(updatedAtMs: number | null, nowMs: number): string {
   return `Updated ${min}m ago`;
 }
 
+function geometryLabel(source: SnapSource | null, busy: boolean): string {
+  if (busy) return "Snapping route to roads (OSRM)…";
+  if (source === "osrm") return "Path: OSRM road-following between ordered stops";
+  if (source === "mixed")
+    return "Path: mostly OSRM roads — some segments fell back to stop chords (labeled)";
+  if (source === "stop-chords")
+    return "Path: stop-to-stop chords (OSRM unavailable) — not a full road shape";
+  return "";
+}
+
 function useDbtslLive(routeNumber: string) {
   const query = DBTSL_ETA_QUERIES[routeNumber];
   const [stops, setStops] = useState<DbtslStopEta[] | null>(null);
@@ -102,7 +116,7 @@ function useDbtslLive(routeNumber: string) {
     } catch (e) {
       if (my !== gen.current) return;
       console.warn("DBTSL ETA fetch failed", e);
-      setError("ETA feed unavailable");
+      setError("ETA feed unavailable — showing seeded stop list");
     } finally {
       if (my === gen.current && manual) setRefreshing(false);
     }
@@ -117,7 +131,6 @@ function useDbtslLive(routeNumber: string) {
     };
   }, [load]);
 
-  // Tick relative "Updated Xs ago" without refetching
   useEffect(() => {
     const id = window.setInterval(() => setTick(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -150,20 +163,31 @@ export function DbBusMap() {
     return route.stops;
   }, [live.stops, route.stops]);
 
+  const shapeKey = useMemo(
+    () => shapeStops.map((s) => `${s.lat.toFixed(5)},${s.lng.toFixed(5)}`).join("|"),
+    [shapeStops],
+  );
+
   const [roadLine, setRoadLine] = useState<LatLng[]>([]);
+  const [roadSource, setRoadSource] = useState<SnapSource | null>(null);
   const [roadBusy, setRoadBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setRoadBusy(true);
+    setRoadSource(null);
     void (async () => {
       try {
-        const snapped = await snapStopsToRoads(shapeStops);
+        const result = await snapStopsToRoadsDetailed(shapeStops);
         if (cancelled) return;
-        setRoadLine(snapped.length >= 2 ? snapped : shapeStops);
+        setRoadLine(result.points.length >= 2 ? result.points : shapeStops);
+        setRoadSource(result.source);
       } catch (e) {
         console.warn("DB OSRM snap failed", e);
-        if (!cancelled) setRoadLine(shapeStops);
+        if (!cancelled) {
+          setRoadLine(shapeStops);
+          setRoadSource("stop-chords");
+        }
       } finally {
         if (!cancelled) setRoadBusy(false);
       }
@@ -171,7 +195,7 @@ export function DbBusMap() {
     return () => {
       cancelled = true;
     };
-  }, [shapeStops]);
+  }, [shapeKey, shapeStops]);
 
   const line = useMemo(
     () => (roadLine.length >= 2 ? roadLine : shapeStops).map((s) => [s.lat, s.lng] as [number, number]),
@@ -184,14 +208,32 @@ export function DbBusMap() {
     return inferDbtslBusesOnRoad(live.stops, road);
   }, [live.stops, roadLine, shapeStops]);
 
-  const trackingMode =
-    live.query && buses.length > 0
-      ? "eta-inferred"
-      : live.query
-        ? route.trackingMode === "schedule"
-          ? "eta-inferred"
-          : route.trackingMode
-        : route.trackingMode;
+  /** Single source of truth for the status banner — never contradict trackingNote. */
+  const statusBanner = useMemo(() => {
+    const geo = geometryLabel(roadSource, roadBusy);
+    if (!live.query) {
+      return {
+        mode: "schedule" as const,
+        text: `Schedule / seeded stops only — no eta.dbtsl.com query for this chip. ${geo}`,
+      };
+    }
+    if (live.error && !live.stops) {
+      return {
+        mode: "schedule" as const,
+        text: `ETA feed error — using seeded stops. ${geo}`,
+      };
+    }
+    if (buses.length > 0) {
+      return {
+        mode: "eta-inferred" as const,
+        text: `Live stop ETAs (eta.dbtsl.com) — ${buses.length} active trip${buses.length === 1 ? "" : "s"}. Bus icon on road · heading to next stop · not vehicle GPS${live.agoLabel ? ` · ${live.agoLabel}` : ""}. ${geo}`,
+      };
+    }
+    return {
+      mode: "eta-inferred" as const,
+      text: `Live stop ETAs available from eta.dbtsl.com — no active trip right now (off-peak / overnight gaps are normal). ${geo}${live.agoLabel ? ` · ${live.agoLabel}` : ""}`,
+    };
+  }, [live.query, live.error, live.stops, live.agoLabel, buses.length, roadSource, roadBusy]);
 
   return (
     <section className="db-bus">
@@ -216,10 +258,10 @@ export function DbBusMap() {
           </div>
         </div>
         <p className="note">
-          Discovery Bay internal routes — zoomed to DB. Bus icons use the official{" "}
-          <strong>eta.dbtsl.com</strong> stop-ETA feed (same as the Discovery Bay app WebView).
-          There is <strong>no vehicle GPS endpoint</strong> — icons are ETA-inferred along the
-          road toward the next stop, never labeled Live GPS. Auto-refreshes every 20s.
+          Discovery Bay internal + external DBTSL routes (C4/C9/6, DB01R/DB02R…). Paths snap
+          consecutive operator stops to <strong>OSRM driving roads</strong> — not stop-to-stop
+          chords. Bus icons use <strong>eta.dbtsl.com</strong> stop ETAs (no vehicle GPS).
+          Auto-refreshes every 20s.
         </p>
       </div>
 
@@ -246,20 +288,8 @@ export function DbBusMap() {
         {route.nameZh && <p className="zh-line">{route.nameZh}</p>}
         <p className="note">{route.summary}</p>
         <p className="note">~HK${route.fareHkd.toFixed(1)} adult Octopus (est.)</p>
-        <div className={`db-track-banner ${trackingMode}`}>
-          {trackingMode === "live-gps" ? (
-            <span>Live GPS · heading from operator feed</span>
-          ) : trackingMode === "eta-inferred" ? (
-            <span>
-              Live ETA (eta.dbtsl.com) — {buses.length} active trip
-              {buses.length === 1 ? "" : "s"}. Icon on road · heading to next stop · not vehicle
-              GPS
-              {live.agoLabel ? ` · ${live.agoLabel}` : ""}
-              {roadBusy ? " · snapping route…" : ""}
-            </span>
-          ) : (
-            <span>Schedule only — no live ETA for this route right now. No fake bus icons.</span>
-          )}
+        <div className={`db-track-banner ${statusBanner.mode}`}>
+          <span>{statusBanner.text}</span>
         </div>
         {live.error && <p className="note">{live.error}</p>}
         <p className="note">{route.trackingNote}</p>
@@ -279,7 +309,12 @@ export function DbBusMap() {
           <FitDb points={shapeStops} />
           <Polyline
             positions={line}
-            pathOptions={{ color: "#c45c26", weight: 5, opacity: 0.9 }}
+            pathOptions={{
+              color: roadSource === "stop-chords" ? "#a67c52" : "#c45c26",
+              weight: 5,
+              opacity: 0.9,
+              dashArray: roadSource === "stop-chords" ? "8 10" : undefined,
+            }}
           />
           {shapeStops.map((stop, i) => (
             <CircleMarker
