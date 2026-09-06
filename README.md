@@ -7,20 +7,22 @@ Vite + React + TypeScript + PWA.
 
 ## Features (MVR)
 
-1. **From → To planner** — curated corridors with bus/ferry/MTR legs, boarding & alight stops, time + adult Octopus fare estimates, walk legs. From/To support **address & building search** (HK ALS + Nominatim).
-2. **Favourites** (localStorage, pre-seeded): DB↔Central, Central→Wan Chai, Sunny Bay→Mong Kok / Sham Shui Po, DB→Tung Chung / Airport, and more.
+1. **From → To planner (HK-wide)** — Citybus/KMB options from open-data **stop proximity + route-stop matching** across Hong Kong Island, Kowloon, New Territories & Lantau. DB↔Central **ferry is first-class**; ferry+connecting bus for Island destinations (e.g. Pacific Place). Board/alight stops, time + adult Octopus estimates, walk legs. From/To support **address & building search** (HK ALS + Nominatim).
+2. **Favourites** (localStorage, pre-seeded): DB↔Central, DB→Pacific Place, Mong Kok→Wan Chai, Tsuen Wan→Central, Sunny Bay→Mong Kok, and more.
 3. **Locked-route map** — operator stop sequences snapped to **roads via OSRM** on **key-free OSM tiles**. When KMB/Citybus ETA is available, buses are shown as **ETA-inferred** positions along that polyline. **Never fake GPS.**
 4. **DB buses tab** — Discovery Bay map (C4/C9/6, DB01R/DB02R…). Live **stop ETAs** from `eta.dbtsl.com`. **No vehicle GPS** — bus icons are ETA-inferred on OSRM roads with heading. **C4 board** / **C9 board** below the map when that chip is selected (never both side-by-side): one vertical column per active bus listing **all stops** in `get_bus_stops` route order, clock ETA + mins (Passed / — when appropriate), and a blue ETA-inferred progress dot. Tall columns scroll inside the board for phone use. Optional **your GPS** suggests nearest stop, walk time, next ETA, and likely direction.
 
-Coverage: Discovery Bay, HK Island, Kowloon, Lantau (Sunny Bay / Tung Chung).
-Operators: KMB, Citybus, DB buses, Lantau routes; **DB↔Central ferry is first-class**.
+Coverage: **entire Hong Kong** (Island, Kowloon, NT, Lantau/DB) via open-data bus matching + curated DB ferry.
+Operators: KMB, Citybus (ex-NWFB), DBTSL, Lantau links; **DB↔Central ferry is first-class**; MTR as connecting hints.
 
-## Sample trip
+## Sample trips
 
-1. Open the app (defaults to **DB Plaza → Central Pier 3**).
-3. Select **Walk + DB Ferry → Central Pier 3**.
-4. Map shows ferry corridor; banner explains schedule mode.
-5. Try Sunny Bay to Mong Kok for MTR/bus options.
+1. **DB Plaza → Pacific Place** — ferry primary + Citybus connecting legs from Central/Admiralty hubs (open-data board/alight).
+2. **Mong Kok → Wan Chai** — cross-harbour Citybus (e.g. 104) as first-class.
+3. **Tsuen Wan → Central** — Citybus 930 corridor + MTR hint.
+4. Lock a bus leg to see OSRM road shape + live ETA when the feed has data.
+
+Rebuild Citybus index (occasional): `python3 scripts/build-ctb-index.py`
 
 ## Run locally
 
@@ -63,8 +65,9 @@ Static dist/ with base ./. Publish via GitHub Pages (gh-pages branch or Actions)
 
 ## Limitations
 
-Corridor-curated MVP. Fare estimates. Confirm DB ferry/bus timetables on the day.
-Map dots are ETA-inferred when feeds work.
+Hub + nearby-stop matching MVP (not a full multimodal graph). Fares are estimates.
+Confirm DB ferry/bus timetables on the day. Map dots are ETA-inferred when feeds work.
+First plan after load may wait on the KMB stop/route-stop download (~few MB).
 
 ## Temporary preview on this box
 Local preview: http://127.0.0.1:5178/

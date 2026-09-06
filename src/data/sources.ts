@@ -5,14 +5,14 @@ export const DATA_SOURCES = {
     url: "https://data.etabus.gov.hk/v1/transport/kmb",
     coverage: "KMB & Long Win routes — stops, route-stop sequences, live ETA",
     liveGps: false,
-    note: "No public vehicle GPS or route polyline. Map uses stop order + OSRM roads; dots are ETA-inferred along that shape.",
+    note: "No public vehicle GPS or route polyline. Planner loads full stop + route-stop lists for HK-wide proximity matching. Map uses stop order + OSRM roads; dots are ETA-inferred along that shape.",
   },
   citybus: {
     name: "Citybus ETA API (data.gov.hk)",
     url: "https://rt.data.gov.hk/v2/transport/citybus",
-    coverage: "Citybus (incl. ex-NWFB) routes — stops, route-stop, live ETA",
+    coverage: "Citybus (incl. ex-NWFB) routes — stops, route-stop, live ETA; Island / cross-harbour / NT express",
     liveGps: false,
-    note: "No public vehicle GPS or route polyline. Same stop-order + OSRM + ETA-inferred policy as KMB.",
+    note: "No bulk stop list endpoint — app ships a generated stop/route-stop index (public/data/ctb-index.json) built from the open API. ETA + OSRM shapes at lock time; never fake GPS.",
   },
   dbBus: {
     name: "Discovery Bay buses (DBTSL)",

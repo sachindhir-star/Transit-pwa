@@ -1,15 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { enrichTripShapes } from "./api/enrichShape";
 import { DbBusMap } from "./components/DbBusMap";
 import { FavouritesBar } from "./components/FavouritesBar";
 import { PlacePicker } from "./components/PlacePicker";
 import { RouteMap } from "./components/RouteMap";
 import { TripOptions } from "./components/TripOptions";
-import { planTrips } from "./data/corridors";
 import { DATA_SOURCES } from "./data/sources";
 import { getPlace } from "./data/places";
 import { useFavourites } from "./hooks/useFavourites";
 import { useLiveEta } from "./hooks/useLiveEta";
+import { planTripsAsync } from "./lib/hkPlanner";
 import type { Place, TripOption } from "./types";
 import "./App.css";
 
@@ -20,13 +20,36 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("plan");
   const [from, setFrom] = useState<Place | null>(() => getPlace("db-plaza") ?? null);
   const [to, setTo] = useState<Place | null>(() => getPlace("central-pier3") ?? null);
+  const [options, setOptions] = useState<TripOption[]>([]);
+  const [planStatus, setPlanStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [selected, setSelected] = useState<TripOption | null>(null);
   const [legIndex, setLegIndex] = useState(0);
   const [enriching, setEnriching] = useState(false);
 
-  const options = useMemo(() => {
-    if (!from || !to) return [];
-    return planTrips(from, to);
+  useEffect(() => {
+    if (!from || !to) {
+      setOptions([]);
+      setPlanStatus("idle");
+      return;
+    }
+    let cancelled = false;
+    setPlanStatus("loading");
+    setSelected(null);
+    planTripsAsync(from, to)
+      .then((opts) => {
+        if (cancelled) return;
+        setOptions(opts);
+        setPlanStatus("ready");
+      })
+      .catch((e) => {
+        console.warn("plan failed", e);
+        if (cancelled) return;
+        setOptions([]);
+        setPlanStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [from, to]);
 
   const activeLeg = selected?.legs[legIndex] ?? null;
@@ -101,7 +124,9 @@ export default function App() {
           </ul>
           <p className="note">
             Adult Octopus fares are estimates. Never invent GPS — live dots only when an ETA feed
-            exists, and they are labeled ETA-inferred. DBTSL routes (C4/C9/6, DB01R/DB02R, …) use eta.dbtsl.com stop ETAs + OSRM roads (no vehicle GPS).
+            exists, and they are labeled ETA-inferred. Citybus/KMB trip options use stop proximity +
+            route-stop matching from open data (HK-wide). DBTSL routes use eta.dbtsl.com stop ETAs +
+            OSRM roads (no vehicle GPS).
           </p>
         </main>
       ) : tab === "db" ? (
@@ -143,6 +168,13 @@ export default function App() {
               excludeId={from?.id}
             />
           </section>
+
+          {planStatus === "loading" && (
+            <p className="note">Matching Citybus/KMB stops &amp; routes across Hong Kong…</p>
+          )}
+          {planStatus === "error" && (
+            <p className="note">Could not load open-data bus index. Try again shortly.</p>
+          )}
 
           <TripOptions options={options} selectedId={selected?.id ?? null} onSelect={lockTrip} />
 
@@ -191,7 +223,8 @@ export default function App() {
       )}
 
       <footer className="foot">
-        Sample: DB Plaza → Central Pier 3 · DB buses: C4/C9/6 · DB01R/DB02R · Add to Home Screen
+        HK-wide Citybus/KMB open-data · DB ferry first-class · Sample: DB → Pacific Place · MK → Wan
+        Chai
       </footer>
     </div>
   );
