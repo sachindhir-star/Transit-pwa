@@ -28,7 +28,7 @@ export default defineConfig({
         navigateFallback: "index.html",
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/(data\.etabus\.gov\.hk|rt\.data\.gov\.hk)\/.*/i,
+            urlPattern: /^https:\/\/(data\.etabus\.gov\.hk|rt\.data\.gov\.hk|router\.project-osrm\.org)\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "hk-transit-api",
@@ -60,6 +60,11 @@ export default defineConfig({
         target: "https://rt.data.gov.hk",
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/ctb/, "/v2/transport/citybus"),
+      },
+      "/api/osrm": {
+        target: "https://router.project-osrm.org",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/osrm/, ""),
       },
     },
   },

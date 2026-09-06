@@ -5,14 +5,14 @@ export const DATA_SOURCES = {
     url: "https://data.etabus.gov.hk/v1/transport/kmb",
     coverage: "KMB & Long Win routes — stops, route-stop sequences, live ETA",
     liveGps: false,
-    note: "No public vehicle GPS. Map dots are ETA-inferred along the stop shape when ETAs exist.",
+    note: "No public vehicle GPS or route polyline. Map uses stop order + OSRM roads; dots are ETA-inferred along that shape.",
   },
   citybus: {
     name: "Citybus ETA API (data.gov.hk)",
     url: "https://rt.data.gov.hk/v2/transport/citybus",
     coverage: "Citybus (incl. ex-NWFB) routes — stops, route-stop, live ETA",
     liveGps: false,
-    note: "No public vehicle GPS. Same ETA-inferred animation policy as KMB.",
+    note: "No public vehicle GPS or route polyline. Same stop-order + OSRM + ETA-inferred policy as KMB.",
   },
   dbBus: {
     name: "Discovery Bay buses (DBTSL)",
@@ -48,5 +48,12 @@ export const DATA_SOURCES = {
     coverage: "Secondary place search when ALS is sparse",
     liveGps: false,
     note: "Respect usage policy; app sends an identifying User-Agent.",
+  },
+  osrm: {
+    name: "OSRM (OpenStreetMap routing)",
+    url: "https://project-osrm.org/",
+    coverage: "Driving geometry between consecutive operator stops when no official bus polyline is published",
+    liveGps: false,
+    note: "Citybus/KMB ETA APIs and TD GTFS lack shapes.txt. Locked bus legs use ordered stop coords, then OSRM road snap. ETA dots follow that polyline and stay labeled ETA-inferred.",
   },
 } as const;

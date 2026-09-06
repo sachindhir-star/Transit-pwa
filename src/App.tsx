@@ -155,7 +155,7 @@ export default function App() {
                 </button>
               </div>
               <p className="locked-sum">{selected.summary}</p>
-              {enriching && <p className="note">Loading operator stop shape…</p>}
+              {enriching && <p className="note">Loading road-following route shape…</p>}
               <div className="leg-tabs">
                 {selected.legs.map((leg, i) => (
                   <button
