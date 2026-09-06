@@ -10,7 +10,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { APPROX_WALK_NOTE } from "../api/enrichShape";
+import { APPROX_WALK_NOTE, FOOT_WALK_NOTE, isApproxWalkLeg } from "../api/enrichShape";
 import { inferBusesFromEta } from "../lib/inferBus";
 import { formatEtaLabel } from "../lib/formatEta";
 import type { InferredBus, LiveEta, TripOption } from "../types";
@@ -41,13 +41,18 @@ interface Props {
   etaStatus: string;
   etaError: string | null;
   activeLegIndex: number;
+  /** True while lock-time OSRM enrich is in flight */
+  enriching?: boolean;
 }
 
-function isApproxWalk(notes?: string) {
-  return !!notes?.includes(APPROX_WALK_NOTE);
-}
-
-export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Props) {
+export function RouteMap({
+  trip,
+  etas,
+  etaStatus,
+  etaError,
+  activeLegIndex,
+  enriching = false,
+}: Props) {
   const leg = trip.legs[activeLegIndex] ?? trip.legs[0];
   const shape = leg?.shape ?? [];
   const line = useMemo(
@@ -63,7 +68,8 @@ export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Pr
     return inferBusesFromEta(shape, etas);
   }, [leg, shape, etas]);
 
-  const walkApprox = leg?.trackingMode === "walk" && isApproxWalk(leg.notes);
+  const walkApprox = leg ? isApproxWalkLeg(leg) : false;
+  const isWalk = leg?.trackingMode === "walk" || leg?.mode === "WALK";
 
   return (
     <section className="map-panel">
@@ -86,10 +92,14 @@ export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Pr
           </span>
         ) : leg?.trackingMode === "mtr-hint" ? (
           <span className="banner">MTR connecting hint — not live train positions</span>
-        ) : walkApprox ? (
-          <span className="banner warn">Approximate walk (no footpath geometry)</span>
+        ) : isWalk && enriching && walkApprox ? (
+          <span className="banner">Snapping walk to footpaths…</span>
+        ) : isWalk && walkApprox ? (
+          <span className="banner warn">{APPROX_WALK_NOTE}</span>
+        ) : isWalk ? (
+          <span className="banner">{FOOT_WALK_NOTE}</span>
         ) : (
-          <span className="banner">Walking leg · footpath geometry</span>
+          <span className="banner">Route leg</span>
         )}
       </div>
       <div className="map-wrap">
@@ -105,11 +115,18 @@ export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Pr
           />
           <FitBounds positions={allPoints.length ? allPoints : line} />
           {trip.legs.map((l, idx) => {
-            const approx = l.trackingMode === "walk" && isApproxWalk(l.notes);
+            const approx = isApproxWalkLeg(l);
+            const positions =
+              l.shape.length >= 2
+                ? l.shape.map((s) => [s.lat, s.lng] as [number, number])
+                : ([
+                    [l.fromStop.lat, l.fromStop.lng],
+                    [l.toStop.lat, l.toStop.lng],
+                  ] as [number, number][]);
             return (
               <Polyline
-                key={idx}
-                positions={l.shape.map((s) => [s.lat, s.lng] as [number, number])}
+                key={`${idx}-${positions.length}-${approx ? "a" : "f"}`}
+                positions={positions}
                 pathOptions={{
                   color: idx === activeLegIndex ? "#c45c26" : "#a38b78",
                   weight: idx === activeLegIndex ? 5 : 3,

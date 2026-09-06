@@ -7,7 +7,10 @@ import { loadCtbShape, loadKmbShape } from "./routeShape";
 import type { StopPoint, TripLeg, TripOption } from "../types";
 
 /** Shown on map when OSRM foot fails — never silently look like a real path. */
-export const APPROX_WALK_NOTE = "approximate walk (no footpath geometry)";
+export const APPROX_WALK_NOTE = "Approximate walk (no footpath geometry)";
+
+/** Shown when OSRM foot snap succeeded. */
+export const FOOT_WALK_NOTE = "Walking leg · footpath geometry";
 
 function dist2(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const dlat = a.lat - b.lat;
@@ -26,6 +29,68 @@ function nearestIndex(shape: StopPoint[], target: { lat: number; lng: number }) 
     }
   });
   return best;
+}
+
+function isWalkLeg(leg: TripLeg): boolean {
+  return leg.mode === "WALK" || leg.trackingMode === "walk";
+}
+
+/**
+ * True when the walk polyline is still a board→alight chord (or missing geometry).
+ * Used so we never claim “footpath geometry” for a 2-point straight line.
+ */
+export function isWalkChord(leg: TripLeg): boolean {
+  if (!isWalkLeg(leg)) return false;
+  if (leg.shape.length < 3) return true;
+  // Success path tags vertices with foot-* ids via asShapePoints(..., "foot")
+  const hasFootVerts = leg.shape.some((p) => String(p.id).startsWith("foot-"));
+  return !hasFootVerts;
+}
+
+export function isApproxWalkLeg(leg: TripLeg): boolean {
+  if (!isWalkLeg(leg)) return false;
+  if (leg.notes?.includes(APPROX_WALK_NOTE)) return true;
+  return isWalkChord(leg);
+}
+
+function stripWalkGeometryNotes(notes?: string): string | undefined {
+  if (!notes) return undefined;
+  const next = notes
+    .split(" · ")
+    .map((p) => p.trim())
+    .filter((p) => p && p !== APPROX_WALK_NOTE && p !== FOOT_WALK_NOTE)
+    .join(" · ");
+  return next || undefined;
+}
+
+export function withApproxWalkNote(leg: TripLeg): TripLeg {
+  const base = stripWalkGeometryNotes(leg.notes);
+  return {
+    ...leg,
+    notes: base ? `${base} · ${APPROX_WALK_NOTE}` : APPROX_WALK_NOTE,
+  };
+}
+
+function withFootWalkNote(leg: TripLeg): TripLeg {
+  const base = stripWalkGeometryNotes(leg.notes);
+  return {
+    ...leg,
+    notes: base ? `${base} · ${FOOT_WALK_NOTE}` : FOOT_WALK_NOTE,
+  };
+}
+
+/** Mark every walk leg as approximate chord (lock/enrich hard-fail path). */
+export function markWalksApproximate(trip: TripOption): TripOption {
+  return {
+    ...trip,
+    legs: trip.legs.map((leg) => {
+      if (!isWalkLeg(leg)) return leg;
+      return withApproxWalkNote({
+        ...leg,
+        shape: leg.shape.length >= 2 ? leg.shape : [leg.fromStop, leg.toStop],
+      });
+    }),
+  };
 }
 
 async function roadShapeFromStops(ordered: StopPoint[]): Promise<StopPoint[]> {
@@ -52,14 +117,6 @@ async function roadShapeFromStops(ordered: StopPoint[]): Promise<StopPoint[]> {
   return pts;
 }
 
-function withApproxWalkNote(leg: TripLeg): TripLeg {
-  if (leg.notes?.includes(APPROX_WALK_NOTE)) return leg;
-  return {
-    ...leg,
-    notes: leg.notes ? `${leg.notes} · ${APPROX_WALK_NOTE}` : APPROX_WALK_NOTE,
-  };
-}
-
 /** Snap a WALK leg to the pedestrian network (OSRM foot). */
 async function enrichWalkLeg(leg: TripLeg): Promise<TripLeg> {
   const from = leg.fromStop;
@@ -70,12 +127,16 @@ async function enrichWalkLeg(leg: TripLeg): Promise<TripLeg> {
     !Number.isFinite(to.lat) ||
     !Number.isFinite(to.lng)
   ) {
-    return withApproxWalkNote(leg);
+    return withApproxWalkNote({
+      ...leg,
+      shape: leg.shape.length >= 2 ? leg.shape : [from, to],
+    });
   }
 
   try {
     const result = await snapWalkToFootpathsDetailed(from, to);
-    if (result.source === "osrm" && result.points.length >= 2) {
+    // Require a real polyline (not a 2-point echo of the chord)
+    if (result.source === "osrm" && result.points.length >= 3) {
       const pts = asShapePoints(result.points, "foot");
       pts[0] = {
         ...pts[0],
@@ -91,16 +152,10 @@ async function enrichWalkLeg(leg: TripLeg): Promise<TripLeg> {
         nameZh: to.nameZh,
         operatorStopId: to.operatorStopId,
       };
-      // Drop any prior approximate label if we got real foot geometry
-      const notes = leg.notes
-        ?.split(" · ")
-        .filter((p) => p !== APPROX_WALK_NOTE)
-        .join(" · ");
-      return {
+      return withFootWalkNote({
         ...leg,
         shape: pts,
-        notes: notes || undefined,
-      };
+      });
     }
   } catch (e) {
     console.warn("Walk foot-snap failed", e);
@@ -191,7 +246,7 @@ async function enrichBusLeg(leg: TripLeg): Promise<TripLeg> {
 export async function enrichTripShapes(trip: TripOption): Promise<TripOption> {
   const legs: TripLeg[] = await Promise.all(
     trip.legs.map(async (leg) => {
-      if (leg.mode === "WALK" || leg.trackingMode === "walk") {
+      if (isWalkLeg(leg)) {
         return enrichWalkLeg(leg);
       }
       if (!leg.route || (leg.mode !== "CTB" && leg.mode !== "KMB")) {
@@ -201,4 +256,12 @@ export async function enrichTripShapes(trip: TripOption): Promise<TripOption> {
     }),
   );
   return { ...trip, legs };
+}
+
+/** Re-snap a single walk leg (e.g. when user switches to it and it is still a chord). */
+export async function enrichWalkLegIfNeeded(leg: TripLeg): Promise<TripLeg> {
+  if (!isWalkLeg(leg)) return leg;
+  if (!isWalkChord(leg) && leg.notes?.includes(FOOT_WALK_NOTE)) return leg;
+  if (!isWalkChord(leg) && leg.shape.length >= 3) return withFootWalkNote(leg);
+  return enrichWalkLeg(leg);
 }

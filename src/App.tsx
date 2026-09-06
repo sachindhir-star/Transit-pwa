@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { enrichTripShapes } from "./api/enrichShape";
+import {
+  enrichTripShapes,
+  enrichWalkLegIfNeeded,
+  isWalkChord,
+  markWalksApproximate,
+} from "./api/enrichShape";
 import { DbBusMap } from "./components/DbBusMap";
 import { FavouritesBar } from "./components/FavouritesBar";
 import { LegDeparture } from "./components/LegDeparture";
@@ -62,7 +67,8 @@ export default function App() {
   };
 
   const lockTrip = async (opt: TripOption) => {
-    setSelected(opt);
+    // Show trip immediately with walks labeled approximate until OSRM foot returns.
+    setSelected(markWalksApproximate(opt));
     const firstBus = opt.legs.findIndex(
       (l) => l.mode === "CTB" || l.mode === "KMB" || l.mode === "DB",
     );
@@ -73,9 +79,31 @@ export default function App() {
       setSelected(enriched);
     } catch (e) {
       console.warn("enrich failed", e);
+      setSelected(markWalksApproximate(opt));
     } finally {
       setEnriching(false);
     }
+  };
+
+  const selectLeg = (i: number) => {
+    setLegIndex(i);
+    const trip = selected;
+    if (!trip) return;
+    const leg = trip.legs[i];
+    if (!leg || (leg.mode !== "WALK" && leg.trackingMode !== "walk")) return;
+    if (!isWalkChord(leg)) return;
+    setEnriching(true);
+    enrichWalkLegIfNeeded(leg)
+      .then((next) => {
+        setSelected((prev) => {
+          if (!prev) return prev;
+          const legs = prev.legs.slice();
+          legs[i] = next;
+          return { ...prev, legs };
+        });
+      })
+      .catch((e) => console.warn("walk re-snap failed", e))
+      .finally(() => setEnriching(false));
   };
 
   const swap = () => {
@@ -210,7 +238,7 @@ export default function App() {
                       key={i}
                       type="button"
                       className={`leg-depart-wrap${i === legIndex ? " selected" : ""}`}
-                      onClick={() => setLegIndex(i)}
+                      onClick={() => selectLeg(i)}
                     >
                       <LegDeparture
                         leg={leg}
@@ -230,7 +258,7 @@ export default function App() {
                     key={i}
                     type="button"
                     className={i === legIndex ? "active" : ""}
-                    onClick={() => setLegIndex(i)}
+                    onClick={() => selectLeg(i)}
                   >
                     {leg.mode}
                     {leg.route ? ` ${leg.route}` : ""}
@@ -243,6 +271,7 @@ export default function App() {
                 etaStatus={activeEta.status}
                 etaError={activeEta.error}
                 activeLegIndex={legIndex}
+                enriching={enriching}
               />
             </section>
           )}

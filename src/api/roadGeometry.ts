@@ -30,9 +30,12 @@ function distM(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+const OSRM_TIMEOUT_MS = 8000;
+
 /**
  * Prefer same-origin Vite proxy (`/api/osrm` → project-osrm.org) for preview CORS,
  * then fall back to the public OSRM host. Profile is driving (bus) or foot (walk).
+ * Each candidate is hard-timeout so a hung proxy cannot block foot snap forever.
  */
 function osrmCandidates(
   coordsPath: string,
@@ -51,15 +54,19 @@ async function fetchOsrmRoute(
   const params = "overview=full&geometries=geojson";
   let lastErr: unknown;
   for (const url of osrmCandidates(coordsPath, params, profile)) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), OSRM_TIMEOUT_MS);
     try {
       const data = await fetchJson<{
         code?: string;
         routes?: { geometry?: { coordinates?: [number, number][] } }[];
-      }>(url);
+      }>(url, { signal: ctrl.signal });
       const coords = data.routes?.[0]?.geometry?.coordinates;
       if (data.code === "Ok" && coords && coords.length >= 2) return coords;
     } catch (e) {
       lastErr = e;
+    } finally {
+      clearTimeout(timer);
     }
   }
   if (lastErr) console.warn(`OSRM ${profile} fetch failed`, lastErr);

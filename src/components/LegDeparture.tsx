@@ -74,7 +74,7 @@ export function LegDeparture({ leg, etas, status, error, active }: Props) {
         </div>
       ) : leg.trackingMode === "schedule" ? (
         <p className="note">Schedule / curated corridor — confirm operator timetable for clock times.</p>
-      ) : leg.mode === "WALK" ? (
+      ) : leg.mode === "WALK" || leg.trackingMode === "walk" ? (
         <p className="note">{leg.notes ?? "Walking leg"}</p>
       ) : leg.mode === "FERRY" ? (
         <p className="note">{leg.notes ?? "Ferry — check NWFF / DB timetable for departures."}</p>
