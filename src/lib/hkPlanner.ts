@@ -14,6 +14,8 @@ import {
 
 const FERRY_FARE = 54.7;
 const DB_EXTERNAL = 12.8;
+/** Final alight / last walk end must be within this of To to count as a complete trip. */
+const DEST_REACH_M = 1000;
 
 function sp(
   id: string,
@@ -23,6 +25,28 @@ function sp(
   extra?: Partial<StopPoint>,
 ): StopPoint {
   return { id, name, lat, lng, ...extra };
+}
+
+
+function optionEndPoint(o: TripOption): StopPoint | null {
+  if (!o.legs.length) return null;
+  return o.legs[o.legs.length - 1].toStop;
+}
+
+/** True when the trip's last stop is near the user's To place (not a hub-only partial). */
+function optionReachesDestination(
+  o: TripOption,
+  dest: Place,
+  maxM = DEST_REACH_M,
+): boolean {
+  const end = optionEndPoint(o);
+  if (!end) return false;
+  return haversineM(end, dest) <= maxM;
+}
+
+function withoutRecommended(o: TripOption): TripOption {
+  if (!o.tags?.includes("recommended")) return o;
+  return { ...o, tags: o.tags.filter((t) => t !== "recommended") };
 }
 
 function placeStop(p: Place, label?: string): StopPoint {
@@ -281,8 +305,9 @@ function buildDbToOutside(from: Place, to: Place): TripOption[] {
     kind: "bus",
   };
 
-  // Primary: ferry only if destination is near Central piers
-  if (haversineM(to, centralHub) < 450) {
+  // Ferry-only only when To is near Central Pier (complete trip). Never list
+  // hub-only DB→Central as a full option for far destinations (Harrow, Tuen Mun, …).
+  if (haversineM(to, centralHub) <= DEST_REACH_M) {
     opts.push(
       optionFromBusLegs(
         "db-ferry-central",
@@ -293,15 +318,6 @@ function buildDbToOutside(from: Place, to: Place): TripOption[] {
             ? [walkLeg(ferryLegs[ferryLegs.length - 1].toStop, placeStop(to))]
             : []),
         ],
-        ["ferry", "recommended", "schedule"],
-      ),
-    );
-  } else {
-    opts.push(
-      optionFromBusLegs(
-        "db-ferry-central-hub",
-        "Walk + DB Ferry → Central Pier 3",
-        ferryLegs,
         ["ferry", "recommended", "schedule"],
       ),
     );
@@ -335,14 +351,15 @@ function buildDbToOutside(from: Place, to: Place): TripOption[] {
         .map((l) => `${l.mode === "CTB" ? "Citybus" : "KMB"} ${l.route}`)
         .join(", ");
       if (!routes) continue;
-      connectOpts.push(
-        optionFromBusLegs(
-          `db-ferry-bus-${hub.id}-${busOpt.id}`,
-          `DB Ferry → Central + ${routes} → ${to.name}`,
-          connect,
-          ["ferry", "bus", "live-eta", "open-data", "recommended"],
-        ),
+      const built = optionFromBusLegs(
+        `db-ferry-bus-${hub.id}-${busOpt.id}`,
+        `DB Ferry → Central + ${routes} → ${to.name}`,
+        connect,
+        ["ferry", "bus", "live-eta", "open-data"],
       );
+      // Skip connectors that still end far from To (incomplete)
+      if (!optionReachesDestination(built, to)) continue;
+      connectOpts.push(built);
     }
   }
   // Deduplicate by bus route set, keep shortest
@@ -483,9 +500,10 @@ export async function planTripsAsync(from: Place, to: Place): Promise<TripOption
 
   if (fromDb && !toDb) {
     options = [...buildDbToOutside(from, to)];
-    // Keep strong curated ferry variants
+    // Keep curated ferry / DB-bus variants that actually reach To
     for (const c of curated) {
-      if (c.tags?.includes("ferry") || c.tags?.includes("db-bus")) options.push(c);
+      if (!(c.tags?.includes("ferry") || c.tags?.includes("db-bus"))) continue;
+      if (optionReachesDestination(c, to)) options.push(c);
     }
   } else if (!fromDb && toDb) {
     // Reverse: open-data to Central + ferry home
@@ -517,7 +535,9 @@ export async function planTripsAsync(from: Place, to: Place): Promise<TripOption
         );
       }
     }
-    options.push(...curated);
+    for (const c of curated) {
+      if (optionReachesDestination(c, to)) options.push(c);
+    }
     options.push(...findDirectBusOptions(from, to, 3));
   } else {
     // Entirely outside DB (or DB internal)
@@ -528,9 +548,10 @@ export async function planTripsAsync(from: Place, to: Place): Promise<TripOption
       // Still offer one transfer alternative for awkward corridors
       options.push(...findTransferBusOptions(from, to, 1));
     }
-    // Merge useful curated corridors (Central↔WC, Sunny Bay, etc.)
+    // Merge useful curated corridors (Central↔WC, Sunny Bay, etc.) that reach To
     for (const c of curated) {
-      if (!c.tags?.includes("fallback")) options.push(c);
+      if (c.tags?.includes("fallback")) continue;
+      if (optionReachesDestination(c, to)) options.push(c);
     }
     const mtr = mtrHintOption(from, to);
     if (mtr) options.push(mtr);
@@ -543,8 +564,12 @@ export async function planTripsAsync(from: Place, to: Place): Promise<TripOption
     return gap <= 900; // drop curated "outside MVP" harbour walks
   });
 
+  // Main list: only complete trips (final end near To). Prefer not showing hub-only partials.
+  options = options.filter((o) => optionReachesDestination(o, to));
+
   // Prefer live bus / ferry before vague hints; then by time
   const rank = (o: TripOption) => {
+    const reaches = optionReachesDestination(o, to);
     const hasLive = o.legs.some((l) => l.trackingMode === "live-eta");
     const hasFerry = o.legs.some((l) => l.mode === "FERRY");
     const hasBus = o.legs.some((l) => l.mode === "CTB" || l.mode === "KMB");
@@ -557,9 +582,10 @@ export async function planTripsAsync(from: Place, to: Place): Promise<TripOption
     const isFallback = o.tags?.includes("fallback");
     const night = o.legs.some((l) => /^N\d/i.test(l.route ?? ""));
     let score = o.totalMin;
+    if (!reaches) score += 1000; // never prefer incomplete hub-only legs
     if (hasLive) score -= 8;
     if (hasBus) score -= 6;
-    if (hasFerry && fromDb) score -= 12;
+    if (hasFerry && fromDb && reaches) score -= 12;
     if (isMtrOnly) score += 15;
     if (isBackup) score += 25;
     if (isFallback) score += 50;
@@ -569,6 +595,13 @@ export async function planTripsAsync(from: Place, to: Place): Promise<TripOption
   };
 
   options.sort((a, b) => rank(a) - rank(b));
+
+  // Only the top complete option may carry "recommended" — never incomplete/partials.
+  options = options.map((o, i) => {
+    const base = withoutRecommended(o);
+    if (i !== 0 || !optionReachesDestination(base, to)) return base;
+    return { ...base, tags: [...(base.tags ?? []), "recommended"] };
+  });
 
   // Never present a harbour-crossing / long walk as a "route". Prefer MTR hint;
   // only keep a short walk when places are genuinely close.
