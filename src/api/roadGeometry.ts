@@ -56,20 +56,22 @@ function pathLengthM(points: LatLng[]): number {
 
 /**
  * Reject absurd OSRM foot detours (e.g. 5.5 km U-turn for a 280 m school walk).
- * Short walks: ratio ≳ 2.75× or >450 m extra. Longer walks: slightly looser.
+ * Short walks: reject ratio ≳ 3.2× or >550 m extra. Longer walks: slightly looser.
  */
 export function isAcceptableFootDistance(routeM: number, straightM: number): boolean {
   if (!Number.isFinite(routeM) || routeM <= 0) return false;
   const straight = Math.max(straightM, 1);
   const ratio = routeM / straight;
   const extra = routeM - straightM;
+  // Short walks: allow modest pedestrian detours (~3× / ≤550 m extra) but reject
+  // absurd U-turns (e.g. 5 km for a 280 m school walk).
   if (straightM <= 1000) {
-    return ratio <= 2.75 && extra <= 450;
+    return ratio <= 3.2 && extra <= 550;
   }
   if (straightM <= 2500) {
-    return ratio <= 2.5 && extra <= 900;
+    return ratio <= 2.75 && extra <= 900;
   }
-  return ratio <= 2.25;
+  return ratio <= 2.5;
 }
 
 const OSRM_TIMEOUT_MS = 8000;

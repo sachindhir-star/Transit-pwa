@@ -68,6 +68,6 @@ export const DATA_SOURCES = {
     url: "https://project-osrm.org/",
     coverage: "Driving geometry for bus stop sequences; foot/pedestrian geometry for walk legs",
     liveGps: false,
-    note: "Citybus/KMB/DBTSL lack official polylines. Ordered stop coords + OSRM driving snap for locked CTB/KMB legs and DB bus map; WALK legs use OSRM foot (labeled approximate chord if foot fails). ETA markers follow the bus polyline and stay labeled ETA-inferred.",
+    note: "Citybus/KMB/DBTSL lack official polylines. Ordered stop coords + OSRM driving snap for locked CTB/KMB legs and DB bus map; WALK legs use OSRM foot with a detour quality gate (labeled approximate chord if foot fails or path is absurd). ETA markers follow the bus polyline and stay labeled ETA-inferred.",
   },
 } as const;
