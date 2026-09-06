@@ -59,3 +59,8 @@ Static dist/ with base ./. Publish via GitHub Pages (gh-pages branch or Actions)
 
 Corridor-curated MVP. Fare estimates. Confirm DB ferry/bus timetables on the day.
 Map dots are ETA-inferred when feeds work.
+
+## Temporary preview on this box
+Local preview: http://127.0.0.1:5178/
+Tunnel script: /workspace/start-transit-tunnel.sh
+Push blocker: gh auth status shows not logged in — run gh auth login then git push -u origin main
