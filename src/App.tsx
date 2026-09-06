@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { enrichTripShapes } from "./api/enrichShape";
+import { DbBusMap } from "./components/DbBusMap";
 import { FavouritesBar } from "./components/FavouritesBar";
 import { PlacePicker } from "./components/PlacePicker";
 import { RouteMap } from "./components/RouteMap";
@@ -11,7 +13,7 @@ import { useLiveEta } from "./hooks/useLiveEta";
 import type { Place, TripOption } from "./types";
 import "./App.css";
 
-type Tab = "plan" | "about";
+type Tab = "plan" | "db" | "about";
 
 export default function App() {
   const { favourites, resetDefaults } = useFavourites();
@@ -20,6 +22,7 @@ export default function App() {
   const [to, setTo] = useState<Place | null>(() => getPlace("central-pier3") ?? null);
   const [selected, setSelected] = useState<TripOption | null>(null);
   const [legIndex, setLegIndex] = useState(0);
+  const [enriching, setEnriching] = useState(false);
 
   const options = useMemo(() => {
     if (!from || !to) return [];
@@ -29,9 +32,18 @@ export default function App() {
   const activeLeg = selected?.legs[legIndex] ?? null;
   const { etas, status, error } = useLiveEta(activeLeg);
 
-  const lockTrip = (opt: TripOption) => {
+  const lockTrip = async (opt: TripOption) => {
     setSelected(opt);
     setLegIndex(0);
+    setEnriching(true);
+    try {
+      const enriched = await enrichTripShapes(opt);
+      setSelected(enriched);
+    } catch (e) {
+      console.warn("enrich failed", e);
+    } finally {
+      setEnriching(false);
+    }
   };
 
   const swap = () => {
@@ -54,6 +66,13 @@ export default function App() {
             onClick={() => setTab("plan")}
           >
             Plan
+          </button>
+          <button
+            type="button"
+            className={tab === "db" ? "active" : ""}
+            onClick={() => setTab("db")}
+          >
+            DB buses
           </button>
           <button
             type="button"
@@ -82,8 +101,12 @@ export default function App() {
           </ul>
           <p className="note">
             Adult Octopus fares are estimates. Never invent GPS — live dots only when an ETA feed
-            exists, and they are labeled ETA-inferred.
+            exists, and they are labeled ETA-inferred. DBTSL internal buses have no public GPS.
           </p>
+        </main>
+      ) : tab === "db" ? (
+        <main className="main">
+          <DbBusMap />
         </main>
       ) : (
         <main className="main">
@@ -132,6 +155,7 @@ export default function App() {
                 </button>
               </div>
               <p className="locked-sum">{selected.summary}</p>
+              {enriching && <p className="note">Loading operator stop shape…</p>}
               <div className="leg-tabs">
                 {selected.legs.map((leg, i) => (
                   <button
@@ -167,7 +191,7 @@ export default function App() {
       )}
 
       <footer className="foot">
-        Sample: DB Plaza → Central Pier 3 · Add to Home Screen from Safari Share
+        Sample: DB Plaza → Central Pier 3 · DB buses tab for C4 / C9 · Add to Home Screen
       </footer>
     </div>
   );

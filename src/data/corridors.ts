@@ -1,5 +1,5 @@
 import type { Place, StopPoint, TripOption } from "../types";
-import { getPlace } from "./places";
+import { getPlace, PLACES } from "./places";
 
 const sp = (
   id: string,
@@ -115,20 +115,28 @@ function centralToWanChaiBus(): TripOption {
         mode: "CTB",
         route: "1",
         routeName: "Citybus 1",
-        direction: "inbound",
-        fromStop: sp("ctb-cen", "Central (Macao Ferry / vicinity)", 22.2878, 114.1515, {
-          operatorStopId: "001125",
+        direction: "outbound",
+        fromStop: sp("ctb-cen", "Central (Macao Ferry)", 22.28827, 114.15042, {
+          operatorStopId: "001027",
         }),
-        toStop: sp("ctb-wc", "Wan Chai (Hennessy Rd)", 22.2778, 114.1725),
+        toStop: sp("ctb-wc", "O'Brien Road, Hennessy Road", 22.27769, 114.17313, {
+          operatorStopId: "002431",
+        }),
         shape: [
-          sp("a", "Central", 22.2878, 114.1515),
-          sp("b", "Admiralty", 22.2795, 114.1655),
-          sp("c", "Wan Chai", 22.2778, 114.1725),
+          sp("ctb1-001027", "Central (Macao Ferry)", 22.28827, 114.15042, { operatorStopId: "001027" }),
+          sp("ctb1-001044", "Rumsey Street, Des Voeux Road Central", 22.28605, 114.15373, { operatorStopId: "001044" }),
+          sp("ctb1-001173", "Hang Seng Bank HQ, Des Voeux Road Central", 22.28436, 114.15597, { operatorStopId: "001173" }),
+          sp("ctb1-001049", "Douglas Street, Des Voeux Road Central", 22.28287, 114.15718, { operatorStopId: "001049" }),
+          sp("ctb1-001050", "Alexandra House, Des Voeux Road Central", 22.28146, 114.1583, { operatorStopId: "001050" }),
+          sp("ctb1-001052", "Chater Garden, Des Voeux Road Central", 22.28011, 114.16065, { operatorStopId: "001052" }),
+          sp("ctb1-003845", "Admiralty - Queensway Plaza", 22.27849, 114.16448, { operatorStopId: "003845" }),
+          sp("ctb1-002427", "Arsenal Street, Hennessy Road", 22.27785, 114.16894, { operatorStopId: "002427" }),
+          sp("ctb1-002431", "O'Brien Road, Hennessy Road", 22.27769, 114.17313, { operatorStopId: "002431" }),
         ],
         durationMin: 15,
         fareHkd: F.islandShort,
-        notes: "Live ETA via Citybus API when stop ID resolves.",
-        eta: { operator: "CTB", stopId: "001125", route: "1" },
+        notes: "Citybus 1 outbound (Central Macao Ferry → Happy Valley). Live ETA from stop 001027.",
+        eta: { operator: "CTB", stopId: "001027", route: "1", dir: "O" },
         trackingMode: "live-eta",
       },
     ],
@@ -453,7 +461,7 @@ function exchangeToWanChai(): TripOption[] {
           ],
           durationMin: 18,
           fareHkd: F.islandShort,
-          eta: { operator: "CTB", stopId: "001124", route: "5B" },
+          eta: { operator: "CTB", stopId: "001152", route: "5B" },
           trackingMode: "live-eta",
         },
       ],
@@ -676,8 +684,66 @@ function clusterOf(id: string): string | null {
   return null;
 }
 
-export function planTrips(from: Place, to: Place): TripOption[] {
-  if (from.id === to.id) return [];
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const la1 = (a.lat * Math.PI) / 180;
+  const la2 = (b.lat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Snap geocoded places onto the nearest curated hub for corridor matching. */
+function resolveHub(place: Place, maxKm = 2.5): Place {
+  if (getPlace(place.id)) return place;
+  let best: Place | null = null;
+  let bestD = Infinity;
+  for (const p of PLACES) {
+    const d = haversineKm(place, p);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  if (best && bestD <= maxKm) return best;
+  return place;
+}
+
+function asStop(place: Place, label?: string): StopPoint {
+  return sp(place.id, label ?? place.name, place.lat, place.lng, { nameZh: place.nameZh });
+}
+
+export function planTrips(fromRaw: Place, toRaw: Place): TripOption[] {
+  const from = resolveHub(fromRaw);
+  const to = resolveHub(toRaw);
+  if (fromRaw.id === toRaw.id) return [];
+
+  if (from.id === to.id) {
+    return [
+      {
+        id: `walk-${fromRaw.id}-${toRaw.id}`,
+        summary: `Walk ${fromRaw.name} → ${toRaw.name}`,
+        totalMin: 12,
+        totalFareHkd: 0,
+        legs: [
+          {
+            mode: "WALK",
+            fromStop: asStop(fromRaw),
+            toStop: asStop(toRaw),
+            shape: [asStop(fromRaw), asStop(toRaw)],
+            durationMin: 12,
+            fareHkd: 0,
+            notes: "Same corridor hub — short walk between searched places.",
+            trackingMode: "walk",
+          },
+        ],
+        tags: ["walk"],
+      },
+    ];
+  }
 
   const direct = PAIR_BUILDERS[pairKey(from.id, to.id)];
   if (direct) return direct().sort((a, b) => a.totalMin - b.totalMin);
@@ -693,16 +759,16 @@ export function planTrips(from: Place, to: Place): TripOption[] {
   // Generic cross-area hint
   return [
     {
-      id: `generic-${from.id}-${to.id}`,
-      summary: `Suggested: local bus/MTR toward ${to.name} (limited corridor data)`,
+      id: `generic-${fromRaw.id}-${toRaw.id}`,
+      summary: `Suggested: local bus/MTR toward ${toRaw.name} (limited corridor data)`,
       totalMin: 45,
       totalFareHkd: 12,
       legs: [
         {
           mode: "WALK",
-          fromStop: placeStop(from.id),
-          toStop: placeStop(to.id),
-          shape: [placeStop(from.id), placeStop(to.id)],
+          fromStop: asStop(fromRaw),
+          toStop: asStop(toRaw),
+          shape: [asStop(fromRaw), asStop(toRaw)],
           durationMin: 45,
           fareHkd: 12,
           notes:

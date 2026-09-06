@@ -7,9 +7,10 @@ Vite + React + TypeScript + PWA.
 
 ## Features (MVR)
 
-1. **From → To planner** — curated corridors with bus/ferry/MTR legs, boarding & alight stops, time + adult Octopus fare estimates, walk legs.
-2. **Favourites** (localStorage, pre-seeded): DB↔Central, Central→Wan Chai, Sunny Bay→Mong Kok / Sham Shui Po, DB→Teng Chung / Airport, and more.
-3. **Locked-route map** — route shape on OSM/CARTO tiles. When KMB/Citybus ETA is available, buses are shown as **ETA-inferred** positions along the shape. **Never fake GPS.** If the feed is down, the UI says so and draws no live dots.
+1. **From → To planner** — curated corridors with bus/ferry/MTR legs, boarding & alight stops, time + adult Octopus fare estimates, walk legs. From/To support **address & building search** (HK ALS + Nominatim).
+2. **Favourites** (localStorage, pre-seeded): DB↔Central, Central→Wan Chai, Sunny Bay→Mong Kok / Sham Shui Po, DB→Tung Chung / Airport, and more.
+3. **Locked-route map** — operator stop shapes on **key-free OSM tiles**. When KMB/Citybus ETA is available, buses are shown as **ETA-inferred** positions along the shape. **Never fake GPS.**
+4. **DB buses tab** — Discovery Bay map focused on C4 / C9 and other internal routes. DBTSL has no public GPS; UI is honest schedule/shape only (no fake dots).
 
 Coverage: Discovery Bay, HK Island, Kowloon, Lantau (Sunny Bay / Tung Chung).
 Operators: KMB, Citybus, DB buses, Lantau routes; **DB↔Central ferry is first-class**.
@@ -62,5 +63,5 @@ Map dots are ETA-inferred when feeds work.
 
 ## Temporary preview on this box
 Local preview: http://127.0.0.1:5178/
+Tunnel: https://cage-friday-parliament-parties.trycloudflare.com
 Tunnel script: /workspace/start-transit-tunnel.sh
-Push blocker: gh auth status shows not logged in — run gh auth login then git push -u origin main

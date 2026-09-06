@@ -256,3 +256,76 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
   font-size: 0.78rem;
   padding: 8px 4px;
 }
+
+
+.picker-hint, .picker-empty {
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.picker-empty { list-style: none; padding: 12px; }
+
+.db-bus { display: grid; gap: 12px; }
+.db-bus-head .note { margin: 4px 0 0; }
+.db-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.db-chip {
+  min-width: 48px;
+  min-height: var(--tap);
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-weight: 700;
+  padding: 0 14px;
+}
+.db-chip.featured { background: var(--accent-soft); border-color: #e7c4a8; }
+.db-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.db-route-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+}
+.zh-line { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.db-track-banner {
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  background: #fff4e0;
+  color: var(--warn);
+}
+.db-track-banner.live-gps { background: #e8f7ee; color: var(--ok); }
+.db-track-banner.eta-inferred { background: #eef6ff; color: #1a4f7a; }
+.db-map-wrap { height: 320px; }
+.db-stop-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 0.88rem;
+}
+.db-stop-list li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.db-stop-list .seq {
+  flex: 0 0 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+}

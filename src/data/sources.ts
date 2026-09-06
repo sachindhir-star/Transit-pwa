@@ -19,7 +19,7 @@ export const DATA_SOURCES = {
     url: "https://www.hkdb.com.hk/ / operator notices",
     coverage: "Internal DB routes (C4/C9 etc.) and external DB0x links",
     liveGps: false,
-    note: "No open real-time ETA API. App uses published schedule windows + labeled schedule fallback.",
+    note: "No public vehicle GPS or open ETA API (proprietary DB Transport app only). DB Buses tab shows curated shapes + honest schedule labeling — never fake dots.",
   },
   dbFerry: {
     name: "DB ↔ Central Ferry",
@@ -34,5 +34,19 @@ export const DATA_SOURCES = {
     coverage: "Island / Tsuen Wan / Tung Chung / Disneyland Resort lines as transfer hints",
     liveGps: false,
     note: "MTR shown as connecting hint with typical ride times — not full journey planner.",
+  },
+  als: {
+    name: "HK Address Lookup (ALS)",
+    url: "https://www.als.gov.hk/",
+    coverage: "Hong Kong building / estate / street address geocoding for From–To search",
+    liveGps: false,
+    note: "Free government address API (JSON). Nominatim/OSM used as secondary fallback.",
+  },
+  nominatim: {
+    name: "OpenStreetMap Nominatim",
+    url: "https://nominatim.openstreetmap.org/",
+    coverage: "Secondary place search when ALS is sparse",
+    liveGps: false,
+    note: "Respect usage policy; app sends an identifying User-Agent.",
   },
 } as const;

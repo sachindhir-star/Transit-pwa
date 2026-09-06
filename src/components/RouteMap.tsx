@@ -90,8 +90,8 @@ export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Pr
           scrollWheelZoom={false}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <FitBounds positions={allPoints.length ? allPoints : line} />
           {trip.legs.map((l, idx) => (

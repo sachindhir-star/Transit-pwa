@@ -39,6 +39,8 @@ export interface TripLeg {
     stopId: string;
     route: string;
     serviceType?: string;
+    /** Citybus dir filter: O outbound / I inbound */
+    dir?: "O" | "I";
   };
   /** Honest label when no public GPS feed */
   trackingMode: "live-eta" | "schedule" | "walk" | "mtr-hint";

@@ -15,6 +15,7 @@ interface CtbEtaRow {
   dest_tc?: string;
   rmk_en?: string;
   data_timestamp?: string;
+  dir?: string;
 }
 
 function minutesUntil(iso: string | null): number | null {
@@ -41,11 +42,20 @@ export async function fetchKmbStopEta(
   }));
 }
 
-export async function fetchCtbEta(stopId: string, route: string): Promise<LiveEta[]> {
+export async function fetchCtbEta(
+  stopId: string,
+  route: string,
+  dir?: "O" | "I",
+): Promise<LiveEta[]> {
   const data = await fetchJson<{ data: CtbEtaRow[] }>(
     ctbUrl(`eta/ctb/${stopId}/${route}`),
   );
-  return (data.data ?? []).map((r) => ({
+  let rows = data.data ?? [];
+  if (dir) {
+    const filtered = rows.filter((r) => (r.dir || "").toUpperCase() === dir);
+    if (filtered.length) rows = filtered;
+  }
+  return rows.map((r) => ({
     etaIso: r.eta,
     minutes: minutesUntil(r.eta),
     dest: r.dest_en || r.dest_tc || "",
@@ -59,12 +69,13 @@ export async function fetchLegEtas(params: {
   stopId: string;
   route: string;
   serviceType?: string;
+  dir?: "O" | "I";
 }): Promise<LiveEta[]> {
   try {
     if (params.operator === "KMB") {
       return await fetchKmbStopEta(params.stopId, params.route, params.serviceType ?? "1");
     }
-    return await fetchCtbEta(params.stopId, params.route);
+    return await fetchCtbEta(params.stopId, params.route, params.dir);
   } catch (e) {
     console.warn("ETA fetch failed", e);
     return [];
