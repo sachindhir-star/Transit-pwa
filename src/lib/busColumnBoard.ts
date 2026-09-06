@@ -132,7 +132,7 @@ export function inferColumnProgress(
   };
 }
 
-/** Build one column per active trip with every stop in feed order. */
+/** Build one column per active trip with every stop in feed order. (board-v3 all-stops) */
 export function buildBusColumns(
   stops: DbtslStopEta[] | null | undefined,
   _def: RouteBoardDef,

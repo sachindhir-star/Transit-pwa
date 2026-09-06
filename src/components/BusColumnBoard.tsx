@@ -86,8 +86,9 @@ export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
         <div>
           <h3 className="bcb-title">{title}</h3>
           <p className="note">
-            One column per active bus · all {stopCount || "route"} stops · clock
-            ETA + mins · blue dot is ETA-inferred (not Live GPS)
+            One column per active bus · all stops from get_bus_stops (
+            {stopCount || "…"} in route order) · clock ETA + mins · blue dot is
+            ETA-inferred (not Live GPS)
           </p>
         </div>
         <div className="db-live-controls">

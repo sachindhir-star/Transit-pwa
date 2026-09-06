@@ -25,6 +25,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Bump cacheId whenever board/SW assets must invalidate phone precaches.
+        cacheId: "hk-transit-board-v3",
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         navigateFallback: "index.html",
         runtimeCaching: [
           {
