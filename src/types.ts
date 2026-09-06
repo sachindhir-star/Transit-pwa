@@ -80,4 +80,6 @@ export interface InferredBus {
   /** Degrees clockwise from north — road heading toward next stop. */
   heading?: number;
   nextStopName?: string;
+  /** Short destination from the polled get_bus_stops variant (e.g. "Tung Chung"). */
+  destinationLabel?: string;
 }

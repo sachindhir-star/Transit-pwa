@@ -30,6 +30,8 @@ export interface ColumnStopEta {
   etaLabel: string | null;
   /** Bus already passed this stop on the trip. */
   passed: boolean;
+  /** Main landmark (larger) vs intermediate (muted). */
+  prominence: "main" | "intermediate";
 }
 
 export interface BusColumnModel {
@@ -68,6 +70,23 @@ function etaForTripAtStop(
 
 function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
+}
+
+/**
+ * C4 main: Coastline, Main Plaza (DB Plaza), North Plaza.
+ * C9 main: Crestmont / Caperidge, Main Plaza, North Plaza.
+ * Everything else is intermediate (smaller/muted on the board).
+ */
+export function stopProminence(
+  route: "C4" | "C9",
+  label: string,
+): "main" | "intermediate" {
+  const n = label.toLowerCase();
+  if (/plaza bus terminus|db plaza|main plaza/.test(n)) return "main";
+  if (/north plaza|db north plaza/.test(n)) return "main";
+  if (route === "C4" && /coastline/.test(n)) return "main";
+  if (route === "C9" && /(crestmont|caperidge)/.test(n)) return "main";
+  return "intermediate";
 }
 
 /**
@@ -132,10 +151,10 @@ export function inferColumnProgress(
   };
 }
 
-/** Build one column per active trip with every stop in feed order. (board-v3 all-stops) */
+/** Build one column per active trip with every stop in feed order. (board-v4 hierarchy) */
 export function buildBusColumns(
   stops: DbtslStopEta[] | null | undefined,
-  _def: RouteBoardDef,
+  def: RouteBoardDef,
 ): BusColumnModel[] {
   if (!stops?.length) return [];
 
@@ -162,6 +181,7 @@ export function buildBusColumns(
             ? "Passed"
             : null,
         passed,
+        prominence: stopProminence(def.route, stop.stop),
       };
     });
 

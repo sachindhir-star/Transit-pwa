@@ -17,7 +17,8 @@ import {
 } from "../data/dbBuses";
 import {
   dbtslStopsToPoints,
-  inferDbtslBusesOnRoad,
+  formatActiveTripsStatus,
+  inferDbtslBusesAllDirections,
 } from "../api/dbtslEta";
 import { BusColumnBoard } from "./BusColumnBoard";
 import { useDbtslLive } from "../hooks/useDbtslLive";
@@ -158,11 +159,12 @@ export function DbBusMap() {
     [roadLine, shapeStops],
   );
 
+  /** All active trips across every destination/variant — map shows every bus. */
   const buses: InferredBus[] = useMemo(() => {
-    if (!live.stops?.length) return [];
+    if (!live.directions?.length) return [];
     const road = roadLine.length >= 2 ? roadLine : shapeStops;
-    return inferDbtslBusesOnRoad(live.stops, road);
-  }, [live.stops, roadLine, shapeStops]);
+    return inferDbtslBusesAllDirections(live.directions, road);
+  }, [live.directions, roadLine, shapeStops]);
 
   const trips: TripFocus[] = useMemo(
     () => (live.stops?.length ? listActiveTrips(live.stops) : []),
@@ -180,7 +182,7 @@ export function DbBusMap() {
     });
   }, [geo.position, shapeStops, live.stops, buses, trips]);
 
-  /** One active trip: prefer location-suggested trip, else soonest ETA. */
+  /** Stop list focus: prefer location-suggested trip, else soonest on primary direction. */
   const activeTrip: TripFocus | null = suggestion?.trip ?? trips[0] ?? null;
 
   const statusBanner = useMemo(() => {
@@ -198,16 +200,17 @@ export function DbBusMap() {
       };
     }
     if (buses.length > 0) {
+      const tripStatus = formatActiveTripsStatus(buses);
       return {
         mode: "eta-inferred" as const,
-        text: `Live stop ETAs (eta.dbtsl.com) — ${buses.length} active trip${buses.length === 1 ? "" : "s"}. Showing one trip ahead from bus position. Bus icon on road · heading to next stop · not vehicle GPS${live.agoLabel ? ` · ${live.agoLabel}` : ""}. ${geoLabel}`,
+        text: `Live stop ETAs (eta.dbtsl.com) — ${tripStatus}. Map shows all buses across directions · heading to next stop · not vehicle GPS${live.agoLabel ? ` · ${live.agoLabel}` : ""}. ${geoLabel}`,
       };
     }
     return {
       mode: "eta-inferred" as const,
       text: `Live stop ETAs available from eta.dbtsl.com — no active trip right now (off-peak / overnight gaps are normal). ${geoLabel}${live.agoLabel ? ` · ${live.agoLabel}` : ""}`,
     };
-  }, [live.query, live.error, live.stops, live.agoLabel, buses.length, roadSource, roadBusy]);
+  }, [live.query, live.error, live.stops, live.agoLabel, buses, roadSource, roadBusy]);
 
   const stopList = useMemo(() => {
     if (activeTrip) {
@@ -230,6 +233,7 @@ export function DbBusMap() {
   }, [activeTrip, shapeStops, suggestion?.nearestStopIndex]);
 
   const userPos = geo.position;
+  const dirCount = live.queries?.length ?? 0;
 
   return (
     <section className="db-bus">
@@ -256,7 +260,8 @@ export function DbBusMap() {
         <p className="note">
           Discovery Bay internal + external DBTSL routes (C4/C9/6, DB01R/DB02R…). Paths snap
           consecutive operator stops to <strong>OSRM driving roads</strong> — not stop-to-stop
-          chords. Bus icons use <strong>eta.dbtsl.com</strong> stop ETAs (no vehicle GPS).
+          chords. Bus icons use <strong>eta.dbtsl.com</strong> stop ETAs (no vehicle GPS). Bidirectional
+          routes poll <strong>all destinations</strong> and show every active bus on the map.
           Below the map, selecting <strong>C4</strong> or <strong>C9</strong> shows that route&apos;s
           column board (one column per active bus, all stops in route order). Auto-refreshes every 20s. Your GPS
           suggests nearest stop + likely direction.
@@ -304,7 +309,11 @@ export function DbBusMap() {
           </ul>
           {activeTrip ? (
             <p className="note db-suggest-trip">
-              Showing upcoming stops for trip {activeTrip.plate} (one trip at a time).
+              Stop list focused on trip {activeTrip.plate}
+              {buses.length > 1
+                ? ` — map shows all ${buses.length} active buses`
+                : ""}
+              .
             </p>
           ) : null}
         </div>
@@ -326,8 +335,11 @@ export function DbBusMap() {
           )}
           {activeTrip ? (
             <p className="note db-suggest-trip">
-              Showing upcoming stops for trip {activeTrip.plate} (nearest active · one trip at a
-              time).
+              Stop list focused on trip {activeTrip.plate}
+              {buses.length > 1
+                ? ` — map shows all ${buses.length} active buses`
+                : " (nearest active)"}
+              .
             </p>
           ) : null}
         </div>
@@ -347,6 +359,15 @@ export function DbBusMap() {
           <span>{statusBanner.text}</span>
         </div>
         {live.error && <p className="note">{live.error}</p>}
+        {dirCount > 1 ? (
+          <p className="note">
+            Polling {dirCount} destination/variants from get_bus_routes
+            {live.directions
+              ? `: ${live.directions.map((d) => d.destLabel).join(" · ")}`
+              : ""}
+            .
+          </p>
+        ) : null}
         <p className="note">{route.trackingNote}</p>
       </div>
 
@@ -419,12 +440,14 @@ export function DbBusMap() {
               key={bus.id}
               position={[bus.lat, bus.lng]}
               icon={busIcon(bus.heading ?? 0, bus.label)}
-              opacity={
-                activeTrip && bus.id === `dbtsl-${activeTrip.tripCode}` ? 1 : 0.45
+              opacity={1}
+              zIndexOffset={
+                activeTrip && bus.id === `dbtsl-${activeTrip.tripCode}` ? 600 : 500
               }
             >
               <Popup>
                 <strong>{route.number} · ETA-inferred</strong>
+                {bus.destinationLabel ? ` · → ${bus.destinationLabel}` : ""}
                 <br />
                 {bus.label}
                 <br />
@@ -467,9 +490,10 @@ export function DbBusMap() {
             ? `Upcoming · trip ${activeTrip.plate}`
             : "Stops (no active trip ETAs)"}
         </h3>
-        {trips.length > 1 ? (
+        {buses.length > 1 ? (
           <span className="note">
-            {trips.length} trips live — showing one chronological list (no mixed-trip time jumps)
+            {formatActiveTripsStatus(buses)} — stop list focuses nearest/suggested; map shows
+            all
           </span>
         ) : null}
       </div>

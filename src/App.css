@@ -619,3 +619,48 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
   line-height: 1.25;
 }
 .bcb-stop.passed .bcb-stop-eta { color: var(--muted); font-weight: 500; }
+
+.bcb-stop.main .bcb-stop-name {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+.bcb-stop.main .bcb-stop-dot {
+  width: 11px;
+  height: 11px;
+  margin-top: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px #f3e0d2;
+}
+.bcb-stop.main .bcb-stop-eta {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.bcb-stop.intermediate {
+  opacity: 0.88;
+}
+.bcb-stop.intermediate .bcb-stop-name {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.bcb-stop.intermediate .bcb-stop-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: 5px;
+  background: #c4a88c;
+  box-shadow: none;
+}
+.bcb-stop.intermediate .bcb-stop-eta {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: #5a7a9a;
+}
+.bcb-stop.intermediate.passed .bcb-stop-name,
+.bcb-stop.intermediate.passed .bcb-stop-eta {
+  color: #b7a08c;
+}
+.bcb-stop.main.passed .bcb-stop-name {
+  color: var(--muted);
+  font-weight: 700;
+}

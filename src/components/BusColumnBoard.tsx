@@ -12,7 +12,7 @@ import { useDbtslLive } from "../hooks/useDbtslLive";
 function StopRow({ stop }: { stop: ColumnStopEta }) {
   return (
     <div
-      className={`bcb-stop ${stop.passed ? "passed" : ""} ${stop.etaLabel ? "has-eta" : ""}`}
+      className={`bcb-stop ${stop.prominence} ${stop.passed ? "passed" : ""} ${stop.etaLabel ? "has-eta" : ""}`}
       title={stop.label}
     >
       <span className="bcb-stop-dot" aria-hidden />
@@ -64,6 +64,7 @@ function boardDefFor(routeNumber: string): RouteBoardDef | null {
 /**
  * Glanceable per-route board for C4 or C9 (never both at once).
  * One vertical column per active trip; all stops in get_bus_stops order.
+ * Main landmarks (Coastline/Crestmont, Plaza, North Plaza) render larger.
  */
 export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
   const def = boardDefFor(routeNumber);
@@ -79,6 +80,8 @@ export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
   const loading = !live.stops && !live.error;
   const title = `${def.route} board`;
   const stopCount = columns[0]?.stops.length ?? live.stops?.length ?? 0;
+  const mainCount =
+    columns[0]?.stops.filter((s) => s.prominence === "main").length ?? 0;
 
   return (
     <section className="bcb" aria-label={title}>
@@ -87,8 +90,9 @@ export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
           <h3 className="bcb-title">{title}</h3>
           <p className="note">
             One column per active bus · all stops from get_bus_stops (
-            {stopCount || "…"} in route order) · clock ETA + mins · blue dot is
-            ETA-inferred (not Live GPS)
+            {stopCount || "…"} in route order
+            {mainCount ? `, ${mainCount} main landmarks larger` : ""}
+            ) · clock ETA + mins · blue dot is ETA-inferred (not Live GPS)
           </p>
         </div>
         <div className="db-live-controls">

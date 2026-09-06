@@ -24,6 +24,14 @@ export interface DbtslStopEta {
   people_cnt: number;
 }
 
+/** One destination/variant poll result for a resident-facing route chip. */
+export interface DbtslDirectionFeed {
+  query: DbtslRouteQuery;
+  /** Short label for status copy (e.g. "Tung Chung", "Plaza"). */
+  destLabel: string;
+  stops: DbtslStopEta[];
+}
+
 interface DbtslStopsResponse {
   status: string;
   stops: DbtslStopEta[];
@@ -32,26 +40,132 @@ interface DbtslStopsResponse {
 /**
  * Keys match DbBusRoute.number (resident-facing labels).
  * `route` is the eta.dbtsl.com code (01R, 02R, 6, C4, …).
+ * Multiple entries = every destination/variant from get_bus_routes that we poll
+ * and merge onto the map (bidirectional external routes, 15/18, etc.).
  */
-export const DBTSL_ETA_QUERIES: Record<string, DbtslRouteQuery> = {
-  C4: { route: "C4", destination: "DB Circle", variant: "1) Normal Route" },
-  C9: { route: "C9", destination: "DB Circle", variant: "1) Normal Route" },
-  "1": { route: "1", destination: "Headland Drive Circular", variant: "1) Normal Route" },
-  "2": { route: "2", destination: "Midvale Village Circular", variant: "1) Normal Route" },
-  "3": { route: "3", destination: "Parkvale Village Circular", variant: "1) Normal Route" },
-  "5": { route: "5", destination: "La Serene Circular", variant: "1) Normal Route" },
-  "6": { route: "6", destination: "Seabee Lane Circular", variant: "1) Normal Route" },
-  "15": { route: "15", destination: "DB Plaza", variant: "1) Normal Route" },
-  "18": { route: "18", destination: "IL PICCO", variant: "1) Normal Route" },
-  DB01R: { route: "01R", destination: "Tung Chung Station", variant: "1 Normal Route" },
-  DB01A: { route: "01A", destination: "Tung Chung Station", variant: "1) Normal Route" },
-  DB01P: { route: "01P", destination: "Tung Chung Station", variant: "1 from Club Siena Opp" },
-  DB02R: { route: "02R", destination: "Airport Circular", variant: "1) Normal Route" },
-  DB02A: { route: "02A", destination: "Airport Circular", variant: "1) Normal Route" },
-  DB03R: { route: "03R", destination: "Sunny Bay Station", variant: "1 Normal Route" },
-  DB03P: { route: "03P", destination: "Sunny Bay Station", variant: "1) Normal Route" },
-  DB08R: { route: "N08R", destination: "Central", variant: "1) Normal Route" },
+export const DBTSL_ETA_QUERIES: Record<string, DbtslRouteQuery[]> = {
+  C4: [{ route: "C4", destination: "DB Circle", variant: "1) Normal Route" }],
+  C9: [{ route: "C9", destination: "DB Circle", variant: "1) Normal Route" }],
+  "1": [
+    {
+      route: "1",
+      destination: "Headland Drive Circular",
+      variant: "1) Normal Route",
+    },
+  ],
+  "2": [
+    {
+      route: "2",
+      destination: "Midvale Village Circular",
+      variant: "1) Normal Route",
+    },
+  ],
+  "3": [
+    {
+      route: "3",
+      destination: "Parkvale Village Circular",
+      variant: "1) Normal Route",
+    },
+  ],
+  "5": [
+    { route: "5", destination: "La Serene Circular", variant: "1) Normal Route" },
+  ],
+  "6": [
+    {
+      route: "6",
+      destination: "Seabee Lane Circular",
+      variant: "1) Normal Route",
+    },
+  ],
+  "15": [
+    { route: "15", destination: "DB Plaza", variant: "1) Normal Route" },
+    { route: "15", destination: "Chianti", variant: "1) Normal Route" },
+  ],
+  "18": [
+    { route: "18", destination: "IL PICCO", variant: "1) Normal Route" },
+    { route: "18", destination: "DB Plaza", variant: "1) Normal Route" },
+  ],
+  DB01R: [
+    { route: "01R", destination: "Tung Chung Station", variant: "1 Normal Route" },
+    { route: "01R", destination: "DB Plaza", variant: "1 Normal Route" },
+  ],
+  DB01A: [
+    { route: "01A", destination: "Tung Chung Station", variant: "1) Normal Route" },
+    { route: "01A", destination: "DB North Plaza", variant: "1) Normal Route" },
+  ],
+  DB01P: [
+    {
+      route: "01P",
+      destination: "Tung Chung Station",
+      variant: "1 from Club Siena Opp",
+    },
+  ],
+  DB02R: [
+    { route: "02R", destination: "Airport Circular", variant: "1) Normal Route" },
+    {
+      route: "02R",
+      destination: "Airport Circular",
+      variant: "2) Additional Stop at Cathay City",
+    },
+  ],
+  DB02A: [
+    { route: "02A", destination: "Airport Circular", variant: "1) Normal Route" },
+    { route: "02A", destination: "Airport Circular", variant: "2) via HZMB" },
+  ],
+  DB03R: [
+    { route: "03R", destination: "Sunny Bay Station", variant: "1 Normal Route" },
+    { route: "03R", destination: "DB Plaza", variant: "1 Normal Route" },
+  ],
+  DB03P: [
+    { route: "03P", destination: "Sunny Bay Station", variant: "1) Normal Route" },
+    { route: "03P", destination: "DB North Plaza", variant: "1) Normal Route" },
+  ],
+  DB08R: [
+    { route: "N08R", destination: "Central", variant: "1) Normal Route" },
+    { route: "N08R", destination: "Coastline Villa", variant: "1) Normal Route" },
+  ],
 };
+
+/** Compact destination label for status banners. */
+export function shortDestLabel(destination: string): string {
+  const d = destination.trim();
+  if (/tung chung/i.test(d)) return "Tung Chung";
+  if (/sunny bay/i.test(d)) return "Sunny Bay";
+  if (/north plaza/i.test(d)) return "North Plaza";
+  if (/db plaza|discovery bay plaza/i.test(d)) return "Plaza";
+  if (/airport/i.test(d)) return "Airport";
+  if (/central/i.test(d)) return "Central";
+  if (/chianti/i.test(d)) return "Chianti";
+  if (/il picco/i.test(d)) return "IL PICCO";
+  if (/coastline/i.test(d)) return "Coastline";
+  if (/db circle/i.test(d)) return "DB Circle";
+  return d.replace(/\s*circular.*/i, "").trim() || d;
+}
+
+/**
+ * Status fragment like "2 active · 1 toward Tung Chung, 1 toward Plaza".
+ * Counts unique trip markers by destination label.
+ */
+export function formatActiveTripsStatus(
+  buses: Array<{ destinationLabel?: string }>,
+): string {
+  const n = buses.length;
+  if (n === 0) return "0 active trips";
+  const byDest = new Map<string, number>();
+  for (const b of buses) {
+    const key = b.destinationLabel || "route";
+    byDest.set(key, (byDest.get(key) ?? 0) + 1);
+  }
+  const parts = [...byDest.entries()].map(([dest, count]) => {
+    if (byDest.size === 1 && /circle/i.test(dest)) {
+      return null; // circular: skip redundant "toward DB Circle"
+    }
+    return `${count} toward ${dest}`;
+  });
+  const detail = parts.filter(Boolean).join(", ");
+  const head = `${n} active trip${n === 1 ? "" : "s"}`;
+  return detail ? `${head} · ${detail}` : head;
+}
 
 function minutesUntil(iso: string): number | null {
   const t = Date.parse(iso);
@@ -83,6 +197,23 @@ export async function fetchDbtslBusStops(
   const row = data?.[0];
   if (!row || row.status !== "success") return [];
   return row.stops ?? [];
+}
+
+/** Poll every destination/variant for a route chip and return tagged feeds. */
+export async function fetchDbtslAllDirections(
+  queries: DbtslRouteQuery[],
+): Promise<DbtslDirectionFeed[]> {
+  const results = await Promise.all(
+    queries.map(async (query) => {
+      const stops = await fetchDbtslBusStops(query);
+      return {
+        query,
+        destLabel: shortDestLabel(query.destination),
+        stops,
+      } satisfies DbtslDirectionFeed;
+    }),
+  );
+  return results;
 }
 
 interface TripHit {
@@ -118,19 +249,25 @@ function nextStopsByTrip(stops: DbtslStopEta[]): Map<string, TripHit> {
  * has a future arrival. Stop lat/lng come from the operator feed — never GPS
  * of the vehicle itself (no vehicle-position endpoint exists).
  */
-export function inferDbtslBusesFromStops(stops: DbtslStopEta[]): InferredBus[] {
+export function inferDbtslBusesFromStops(
+  stops: DbtslStopEta[],
+  opts?: { destinationLabel?: string },
+): InferredBus[] {
   const byTrip = nextStopsByTrip(stops);
   const buses: InferredBus[] = [];
+  const dest = opts?.destinationLabel;
   for (const [trip, hit] of byTrip) {
     const { plate } = parseTripCode(trip);
+    const destBit = dest ? ` · → ${dest}` : "";
     buses.push({
       id: `dbtsl-${trip}`,
       lat: hit.stop.latitude,
       lng: hit.stop.longitude,
       etaMinutes: hit.minutes,
-      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop} · ETA-inferred (not GPS)`,
+      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop}${destBit} · ETA-inferred (not GPS)`,
       mode: "eta-inferred",
       nextStopName: hit.stop.stop,
+      destinationLabel: dest,
     });
   }
   return buses;
@@ -143,9 +280,11 @@ export function inferDbtslBusesFromStops(stops: DbtslStopEta[]): InferredBus[] {
 export function inferDbtslBusesOnRoad(
   stops: DbtslStopEta[],
   road: LatLng[],
+  opts?: { destinationLabel?: string },
 ): InferredBus[] {
   const byTrip = nextStopsByTrip(stops);
   const buses: InferredBus[] = [];
+  const dest = opts?.destinationLabel;
   for (const [trip, hit] of byTrip) {
     const { plate } = parseTripCode(trip);
     const next = { lat: hit.stop.latitude, lng: hit.stop.longitude };
@@ -160,18 +299,49 @@ export function inferDbtslBusesOnRoad(
     const lat = placed?.lat ?? next.lat;
     const lng = placed?.lng ?? next.lng;
     const heading = placed?.heading;
+    const destBit = dest ? ` · → ${dest}` : "";
     buses.push({
       id: `dbtsl-${trip}`,
       lat,
       lng,
       etaMinutes: hit.minutes,
-      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop} · ETA-inferred (not GPS)`,
+      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop}${destBit} · ETA-inferred (not GPS)`,
       mode: "eta-inferred",
       heading,
       nextStopName: hit.stop.stop,
+      destinationLabel: dest,
     });
   }
   return buses;
+}
+
+/**
+ * Merge active trips from every direction/variant feed onto one bus list.
+ * Uses each feed's own stop sequence for placement (stop chords as road path
+ * when a shared OSRM line is not available for that direction).
+ */
+export function inferDbtslBusesAllDirections(
+  directions: DbtslDirectionFeed[],
+  primaryRoad?: LatLng[],
+): InferredBus[] {
+  const out: InferredBus[] = [];
+  const seen = new Set<string>();
+  directions.forEach((dir, di) => {
+    if (!dir.stops.length) return;
+    const road: LatLng[] =
+      di === 0 && primaryRoad && primaryRoad.length >= 2
+        ? primaryRoad
+        : dir.stops.map((s) => ({ lat: s.latitude, lng: s.longitude }));
+    const buses = inferDbtslBusesOnRoad(dir.stops, road, {
+      destinationLabel: dir.destLabel,
+    });
+    for (const b of buses) {
+      if (seen.has(b.id)) continue;
+      seen.add(b.id);
+      out.push(b);
+    }
+  });
+  return out;
 }
 
 export function dbtslStopsToPoints(stops: DbtslStopEta[]): StopPoint[] {

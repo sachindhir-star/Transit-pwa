@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DBTSL_ETA_QUERIES,
-  fetchDbtslBusStops,
+  fetchDbtslAllDirections,
+  type DbtslDirectionFeed,
+  type DbtslRouteQuery,
   type DbtslStopEta,
 } from "../api/dbtslEta";
 
@@ -18,8 +20,15 @@ function formatAgo(updatedAtMs: number | null, nowMs: number): string {
 
 /** Poll eta.dbtsl.com stop ETAs for a DBTSL route number (~20s). */
 export function useDbtslLive(routeNumber: string | null) {
-  const query = routeNumber ? DBTSL_ETA_QUERIES[routeNumber] : undefined;
+  const queries: DbtslRouteQuery[] | undefined = routeNumber
+    ? DBTSL_ETA_QUERIES[routeNumber]
+    : undefined;
+  /** Primary query (first destination) — used for shape / focused stop list. */
+  const query = queries?.[0];
   const [stops, setStops] = useState<DbtslStopEta[] | null>(null);
+  const [directions, setDirections] = useState<DbtslDirectionFeed[] | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [updatedAtMs, setUpdatedAtMs] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -28,8 +37,9 @@ export function useDbtslLive(routeNumber: string | null) {
 
   const load = useCallback(
     async (manual = false) => {
-      if (!query) {
+      if (!queries?.length) {
         setStops(null);
+        setDirections(null);
         setError(null);
         setUpdatedAtMs(null);
         return;
@@ -37,9 +47,13 @@ export function useDbtslLive(routeNumber: string | null) {
       const my = ++gen.current;
       if (manual) setRefreshing(true);
       try {
-        const rows = await fetchDbtslBusStops(query);
+        const feeds = await fetchDbtslAllDirections(queries);
         if (my !== gen.current) return;
-        setStops(rows);
+        setDirections(feeds);
+        // Primary shape/list: first destination that returned stops, else first.
+        const primary =
+          feeds.find((f) => f.stops.length > 0) ?? feeds[0] ?? null;
+        setStops(primary?.stops?.length ? primary.stops : []);
         setError(null);
         setUpdatedAtMs(Date.now());
       } catch (e) {
@@ -50,18 +64,18 @@ export function useDbtslLive(routeNumber: string | null) {
         if (my === gen.current && manual) setRefreshing(false);
       }
     },
-    [query],
+    [queries],
   );
 
   useEffect(() => {
     void load(false);
-    if (!query) return;
+    if (!queries?.length) return;
     const id = window.setInterval(() => void load(false), POLL_MS);
     return () => {
       gen.current += 1;
       window.clearInterval(id);
     };
-  }, [load, query]);
+  }, [load, queries]);
 
   useEffect(() => {
     const id = window.setInterval(() => setTick(Date.now()), 1000);
@@ -72,7 +86,9 @@ export function useDbtslLive(routeNumber: string | null) {
 
   return {
     query,
+    queries,
     stops,
+    directions,
     error,
     updatedAtMs,
     agoLabel,
