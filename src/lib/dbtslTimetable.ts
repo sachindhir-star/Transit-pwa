@@ -1,16 +1,41 @@
 /**
  * Official DBTSL published timetable (Discovery Bay app CSVs).
  * Always-visible baseline for DB buses UX — live eta.dbtsl.com overlays on top when trips exist.
+ *
+ * Schedule CSVs are keyed by timetable "From" / terminus (bus_line_route), not every roadside stop.
+ * fromStops lists each published From when available; routes 1 & 6 also expose an approx village
+ * table (+3 min per official remark) where the CSV has no separate village schedule.
  */
 import timetableJson from "../data/dbtslTimetable.json" with { type: "json" };
 
 export type DayType = "monThu" | "fri" | "sat" | "sunPh";
+
+export interface TimetableFromStop {
+  id: string;
+  /** Short chip label (Plaza, Seabee, …) */
+  label: string;
+  /** Full origin name for “Departures from …” */
+  stop: string;
+  endPoint: string;
+  /** true when times come from official bus_line_schedule for this From */
+  published: boolean;
+  dayLabels?: Partial<Record<DayType, string>>;
+  departures?: Partial<Record<DayType, string[]>>;
+  /** Derive times by shifting another fromStop (official village ≈ offset) */
+  approxOffsetMinutes?: number;
+  approxFromId?: string;
+  note?: string;
+}
 
 export interface TimetableRoute {
   stop: string;
   endPoint: string;
   dayLabels: Partial<Record<DayType, string>>;
   departures: Partial<Record<DayType, string[]>>;
+  /** Optional multi-origin tables (official From + approx village where noted) */
+  fromStops?: TimetableFromStop[];
+  /** Documented data shape: terminus-from | … */
+  scheduleKeyedBy?: string;
 }
 
 export interface ScheduledDeparture {
@@ -37,8 +62,14 @@ export interface HourBucket {
 
 export interface TodaysSchedule {
   routeNumber: string;
+  fromStopId: string;
+  /** Short chip label */
+  fromLabel: string;
   stop: string;
   endPoint: string;
+  published: boolean;
+  /** Clarifying note (e.g. approx village offset) */
+  originNote: string | null;
   dayType: DayType;
   dayLabel: string;
   /** All HH:MM for today's day-type table */
@@ -59,6 +90,7 @@ const data = timetableJson as TimetableFile;
 
 export const DBTSL_TIMETABLE_VERSION = data.version;
 export const DBTSL_TIMETABLE_SOURCE = data.source;
+export const DBTSL_TIMETABLE_NOTE = data.note;
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
@@ -140,9 +172,19 @@ function parseHhMm(t: string): number | null {
   return h * 60 + min;
 }
 
-function dayLabelFor(route: TimetableRoute, dayType: DayType): string {
+function minsToHhMm(mins: number): string {
+  const wrapped = ((mins % (24 * 60)) + 24 * 60) % (24 * 60);
+  const h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  return `${pad2(h)}:${pad2(m)}`;
+}
+
+function dayLabelFor(
+  dayLabels: Partial<Record<DayType, string>> | undefined,
+  dayType: DayType,
+): string {
   return (
-    route.dayLabels[dayType] ??
+    dayLabels?.[dayType] ??
     (dayType === "monThu"
       ? "Mon - Thu"
       : dayType === "fri"
@@ -153,17 +195,114 @@ function dayLabelFor(route: TimetableRoute, dayType: DayType): string {
   );
 }
 
-function timesForDay(route: TimetableRoute, dayType: DayType): string[] {
+function timesForDay(
+  departures: Partial<Record<DayType, string[]>> | undefined,
+  dayType: DayType,
+): string[] {
   return (
-    route.departures[dayType] ??
-    route.departures.monThu ??
-    route.departures.sat ??
+    departures?.[dayType] ??
+    departures?.monThu ??
+    departures?.sat ??
     []
   );
 }
 
+function shiftTimes(times: string[], offsetMinutes: number): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const t of times) {
+    const mins = parseHhMm(t);
+    if (mins == null) continue;
+    const clock = minsToHhMm(mins + offsetMinutes);
+    if (seen.has(clock)) continue;
+    seen.add(clock);
+    out.push(clock);
+  }
+  return out.sort((a, b) => (parseHhMm(a) ?? 0) - (parseHhMm(b) ?? 0));
+}
+
 export function getTimetableRoute(routeNumber: string): TimetableRoute | null {
   return data.routes[routeNumber] ?? null;
+}
+
+/** Resolve From options for a route (always ≥1 when a timetable exists). */
+export function listFromStops(routeNumber: string): TimetableFromStop[] {
+  const route = getTimetableRoute(routeNumber);
+  if (!route) return [];
+  if (route.fromStops?.length) return route.fromStops;
+  return [
+    {
+      id: "primary",
+      label: route.stop,
+      stop: route.stop,
+      endPoint: route.endPoint,
+      published: true,
+      dayLabels: route.dayLabels,
+      departures: route.departures,
+    },
+  ];
+}
+
+export function getFromStop(
+  routeNumber: string,
+  fromStopId?: string | null,
+): TimetableFromStop | null {
+  const stops = listFromStops(routeNumber);
+  if (!stops.length) return null;
+  if (fromStopId) {
+    const hit = stops.find((s) => s.id === fromStopId);
+    if (hit) return hit;
+  }
+  return stops[0];
+}
+
+function resolvedDepartures(
+  routeNumber: string,
+  from: TimetableFromStop,
+): {
+  dayLabels: Partial<Record<DayType, string>>;
+  departures: Partial<Record<DayType, string[]>>;
+  originNote: string | null;
+} {
+  if (from.departures && Object.keys(from.departures).length > 0) {
+    return {
+      dayLabels: from.dayLabels ?? {},
+      departures: from.departures,
+      originNote: from.published
+        ? null
+        : (from.note ?? "Approximate departures (not a separate published CSV table)."),
+    };
+  }
+  if (
+    from.approxOffsetMinutes != null &&
+    from.approxFromId &&
+    from.approxOffsetMinutes !== 0
+  ) {
+    const base = getFromStop(routeNumber, from.approxFromId);
+    const baseDeps = base?.departures;
+    if (baseDeps) {
+      const shifted: Partial<Record<DayType, string[]>> = {};
+      for (const key of Object.keys(baseDeps) as DayType[]) {
+        const times = baseDeps[key];
+        if (times?.length) {
+          shifted[key] = shiftTimes(times, from.approxOffsetMinutes);
+        }
+      }
+      return {
+        dayLabels: from.dayLabels ?? base.dayLabels ?? {},
+        departures: shifted,
+        originNote:
+          from.note ??
+          `Approximate: official note says ~${from.approxOffsetMinutes} min after ${base.label}.`,
+      };
+    }
+  }
+  const route = getTimetableRoute(routeNumber);
+  return {
+    dayLabels: from.dayLabels ?? route?.dayLabels ?? {},
+    departures: route?.departures ?? {},
+    originNote: from.note ?? null,
+  };
 }
 
 /** Group HH:MM clock times into Timetable-tab style hour rows. */
@@ -199,35 +338,46 @@ export function groupDeparturesByHour(
 export function getTodaysSchedule(
   routeNumber: string,
   now: Date = new Date(),
+  fromStopId?: string | null,
 ): TodaysSchedule | null {
-  const route = getTimetableRoute(routeNumber);
-  if (!route) return null;
+  const from = getFromStop(routeNumber, fromStopId);
+  if (!from) return null;
+  const { dayLabels, departures, originNote } = resolvedDepartures(
+    routeNumber,
+    from,
+  );
   const today = hkParts(now);
   const dayType = dayTypeForYmd(today.ymd, today.weekday);
-  const times = timesForDay(route, dayType);
+  const times = timesForDay(departures, dayType);
   if (!times.length) return null;
   return {
     routeNumber,
-    stop: route.stop,
-    endPoint: route.endPoint,
+    fromStopId: from.id,
+    fromLabel: from.label,
+    stop: from.stop,
+    endPoint: from.endPoint,
+    published: from.published,
+    originNote,
     dayType,
-    dayLabel: dayLabelFor(route, dayType),
+    dayLabel: dayLabelFor(dayLabels, dayType),
     times,
     byHour: groupDeparturesByHour(times, today.minutesOfDay),
   };
 }
 
 /**
- * Next published departures at the route's primary stop (Plaza / key terminus).
+ * Next published departures at the selected From stop.
  * Wraps to tomorrow's table when today's remaining slots are exhausted.
  */
 export function nextScheduledDepartures(
   routeNumber: string,
   count = 5,
   now: Date = new Date(),
+  fromStopId?: string | null,
 ): ScheduledDeparture[] {
-  const route = getTimetableRoute(routeNumber);
-  if (!route) return [];
+  const from = getFromStop(routeNumber, fromStopId);
+  if (!from) return [];
+  const { dayLabels, departures } = resolvedDepartures(routeNumber, from);
 
   const today = hkParts(now);
   const out: ScheduledDeparture[] = [];
@@ -237,8 +387,8 @@ export function nextScheduledDepartures(
     const weekday =
       dayOffset === 0 ? today.weekday : (today.weekday + dayOffset) % 7;
     const dayType = dayTypeForYmd(ymd, weekday);
-    const times = timesForDay(route, dayType);
-    const dayLabel = dayLabelFor(route, dayType);
+    const times = timesForDay(departures, dayType);
+    const dayLabel = dayLabelFor(dayLabels, dayType);
 
     for (const time of times) {
       const mins = parseHhMm(time);
@@ -272,4 +422,13 @@ export function formatScheduledClock(dep: ScheduledDeparture): string {
 export function formatTimetablePill(dep: ScheduledDeparture): string {
   const clock = formatScheduledClock(dep);
   return `${clock} · timetable`;
+}
+
+/** Plain-language origin line for the timetable panel. */
+export function formatDeparturesFromHeadline(schedule: TodaysSchedule): string {
+  return `Departures from ${schedule.stop}`;
+}
+
+export function formatBusLeavesAt(schedule: TodaysSchedule, time: string): string {
+  return `Bus leaves ${schedule.fromLabel} at ${time}`;
 }

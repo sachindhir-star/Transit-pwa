@@ -35,10 +35,12 @@ import {
 } from "../lib/dbSuggest";
 import {
   DBTSL_TIMETABLE_VERSION,
+  formatDeparturesFromHeadline,
   formatScheduledClock,
   formatTimetablePill,
   getTodaysSchedule,
   hkParts,
+  listFromStops,
   nextScheduledDepartures,
 } from "../lib/dbtslTimetable";
 import { useGeolocation } from "../hooks/useGeolocation";
@@ -119,7 +121,20 @@ export function DbBusMap() {
     [],
   );
   const [selectedId, setSelectedId] = useState<string>("db-c4");
+  const [fromStopId, setFromStopId] = useState<string | null>(null);
   const route = featured.find((r) => r.id === selectedId) ?? featured[0];
+  const fromStops = useMemo(() => listFromStops(route.number), [route.number]);
+
+  // Reset From when the route chip changes; keep a valid id if still present.
+  useEffect(() => {
+    if (!fromStops.length) {
+      setFromStopId(null);
+      return;
+    }
+    setFromStopId((prev) =>
+      prev && fromStops.some((s) => s.id === prev) ? prev : fromStops[0].id,
+    );
+  }, [route.number, fromStops]);
   const live = useDbtslLive(route.number);
   const geo = useGeolocation(true);
 
@@ -184,12 +199,12 @@ export function DbBusMap() {
 
   /** Always-visible published schedule (timetable-first baseline). */
   const todaysSchedule = useMemo(
-    () => getTodaysSchedule(route.number, now),
-    [route.number, now],
+    () => getTodaysSchedule(route.number, now, fromStopId),
+    [route.number, now, fromStopId],
   );
   const timetableNext = useMemo(
-    () => nextScheduledDepartures(route.number, 8, now),
-    [route.number, now],
+    () => nextScheduledDepartures(route.number, 8, now, fromStopId),
+    [route.number, now, fromStopId],
   );
   const hkNow = useMemo(() => hkParts(now), [now]);
 
@@ -239,7 +254,7 @@ export function DbBusMap() {
   const statusBanner = useMemo(() => {
     const geoLabel = geometryLabel(roadSource, roadBusy);
     const ttHint = todaysSchedule
-      ? `Timetable always shown · ${todaysSchedule.stop} · official DBTSL v${DBTSL_TIMETABLE_VERSION}`
+      ? `Timetable always shown · from ${todaysSchedule.stop} · toward ${todaysSchedule.endPoint} · official DBTSL v${DBTSL_TIMETABLE_VERSION}`
       : "No bundled timetable for this chip";
     if (!live.query) {
       return {
@@ -327,7 +342,8 @@ export function DbBusMap() {
         </div>
         <p className="note">
           <strong>Timetable-first</strong> (like the official DB app Timetable tab): published
-          clock times from Discovery Bay schedule CSVs are always visible. When{" "}
+          clock times from Discovery Bay schedule CSVs are always visible, labeled by{" "}
+          <strong>From stop</strong> (origin) and direction. When{" "}
           <strong>eta.dbtsl.com</strong> has active trips, a <strong>Live</strong> layer sits on
           top (bus icons, ETAs, C4/C9 column board). If live is empty, the timetable stays — never
           only “no active trip”. Paths snap to <strong>OSRM</strong> roads; icons are ETA-inferred
@@ -450,21 +466,84 @@ export function DbBusMap() {
           </div>
         ) : null}
         {todaysSchedule ? (
-          <div className="db-timetable" role="region" aria-label="Published timetable">
-            <div className="db-timetable-title">
-              Timetable · {todaysSchedule.dayLabel} · {todaysSchedule.stop}
+          <div
+            className="db-timetable"
+            role="region"
+            aria-label={`Published timetable from ${todaysSchedule.stop}`}
+          >
+            <div className="db-timetable-origin">
+              <div className="db-timetable-origin-main">
+                {formatDeparturesFromHeadline(todaysSchedule)}
+              </div>
+              <div className="db-timetable-origin-dir">
+                Route {route.number} toward {todaysSchedule.endPoint}
+              </div>
+              <div className="db-timetable-origin-meta">
+                {todaysSchedule.dayLabel}
+                {todaysSchedule.published ? " · published CSV" : " · approx. village"}
+                {" · "}official DBTSL v{DBTSL_TIMETABLE_VERSION}
+              </div>
             </div>
+            {fromStops.length > 1 ? (
+              <div className="db-tt-from">
+                <label className="db-tt-from-label" htmlFor="db-tt-from-select">
+                  From stop
+                </label>
+                <div className="db-tt-from-chips" role="group" aria-label="Timetable from stop">
+                  {fromStops.map((fs) => (
+                    <button
+                      key={fs.id}
+                      type="button"
+                      className={`db-tt-from-chip${fromStopId === fs.id ? " active" : ""}${fs.published ? "" : " approx"}`}
+                      onClick={() => setFromStopId(fs.id)}
+                      aria-pressed={fromStopId === fs.id}
+                      title={
+                        fs.published
+                          ? `Published departures from ${fs.stop}`
+                          : (fs.note ?? `Approximate departures from ${fs.stop}`)
+                      }
+                    >
+                      {fs.label}
+                      {!fs.published ? " ≈" : ""}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  id="db-tt-from-select"
+                  className="db-tt-from-select"
+                  value={fromStopId ?? fromStops[0]?.id ?? ""}
+                  onChange={(e) => setFromStopId(e.target.value)}
+                  aria-label="From stop"
+                >
+                  {fromStops.map((fs) => (
+                    <option key={fs.id} value={fs.id}>
+                      {fs.label}
+                      {fs.published ? "" : " (approx)"} — {fs.stop}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <p className="note db-timetable-note">
+                Official schedule is keyed by this terminus From (CSV has no other From for this
+                route).
+              </p>
+            )}
             <p className="note db-timetable-note">
-              Published schedule (not live ETA) · → {todaysSchedule.endPoint} · official DBTSL v
-              {DBTSL_TIMETABLE_VERSION}
+              {todaysSchedule.published
+                ? "Published schedule (not live ETA)"
+                : "Approximate schedule from official village offset (not a separate CSV table)"}
               {buses.length > 0
                 ? " · shown under live overlay"
                 : " · live feed idle — schedule stays visible"}
               .
+              {todaysSchedule.originNote ? ` ${todaysSchedule.originNote}` : ""}
             </p>
             {timetableNext.length > 0 ? (
               <>
-                <div className="db-timetable-subtitle">Next departures</div>
+                <div className="db-timetable-subtitle">
+                  Bus leaves {todaysSchedule.fromLabel} at…
+                </div>
                 <ul className="db-timetable-list">
                   {timetableNext.map((dep) => (
                     <li key={`${dep.tomorrow ? "t" : "d"}-${dep.time}`}>
@@ -477,8 +556,14 @@ export function DbBusMap() {
                 </ul>
               </>
             ) : null}
-            <div className="db-timetable-subtitle">Today · hours / minutes</div>
-            <div className="db-tt-grid" role="table" aria-label="Timetable hour grid">
+            <div className="db-timetable-subtitle">
+              Today · hours / minutes from {todaysSchedule.fromLabel}
+            </div>
+            <div
+              className="db-tt-grid"
+              role="table"
+              aria-label={`Timetable hour grid from ${todaysSchedule.stop}`}
+            >
               {todaysSchedule.byHour.map((row) => {
                 const isCurrentHour = row.hour === hkNow.hour;
                 return (
@@ -502,8 +587,9 @@ export function DbBusMap() {
                           timetableNext[0].time === clock;
                         return (
                           <span
-                            key={mm}
+                            key={`${clock}-${mm}`}
                             className={`db-tt-min${past ? " past" : ""}${isNext ? " next" : ""}`}
+                            title={`Bus leaves ${todaysSchedule.fromLabel} at ${clock}`}
                           >
                             {mm}
                           </span>

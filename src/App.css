@@ -326,6 +326,72 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
   font-size: 0.9rem;
   color: #5c4a3a;
 }
+.db-timetable-origin {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e7c4a8;
+}
+.db-timetable-origin-main {
+  font-weight: 800;
+  font-size: 1.02rem;
+  color: #3a2f26;
+  line-height: 1.25;
+}
+.db-timetable-origin-dir {
+  font-weight: 650;
+  font-size: 0.88rem;
+  color: #5c4a3a;
+}
+.db-timetable-origin-meta {
+  font-size: 0.75rem;
+  color: #8a6a4a;
+}
+.db-tt-from {
+  display: grid;
+  gap: 6px;
+}
+.db-tt-from-label {
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8a6a4a;
+}
+.db-tt-from-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.db-tt-from-chip {
+  border: 1px solid #d9b89a;
+  background: #fff;
+  color: #5c4a3a;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.db-tt-from-chip.active {
+  background: #c45c26;
+  border-color: #c45c26;
+  color: #fff;
+}
+.db-tt-from-chip.approx:not(.active) {
+  border-style: dashed;
+}
+.db-tt-from-select {
+  width: 100%;
+  border: 1px solid #d9b89a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #3a2f26;
+  font-size: 0.88rem;
+}
 .db-timetable-note { margin: 0; }
 .db-timetable-list {
   list-style: none;
