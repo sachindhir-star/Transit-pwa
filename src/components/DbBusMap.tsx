@@ -28,20 +28,34 @@ import {
   type SnapSource,
 } from "../api/roadGeometry";
 import { formatEtaLabel } from "../lib/formatEta";
+import {
+  buildLocationSuggestion,
+  listActiveTrips,
+  type TripFocus,
+} from "../lib/dbSuggest";
+import { useGeolocation } from "../hooks/useGeolocation";
 import type { InferredBus, StopPoint } from "../types";
 
 const POLL_MS = 20_000;
 
-function FitDb({ points }: { points: StopPoint[] }) {
+function FitDb({
+  points,
+  user,
+}: {
+  points: StopPoint[];
+  user: { lat: number; lng: number } | null;
+}) {
   const map = useMap();
   useEffect(() => {
-    if (points.length < 2) {
+    const pts: [number, number][] = points.map((s) => [s.lat, s.lng]);
+    if (user) pts.push([user.lat, user.lng]);
+    if (pts.length < 2) {
       map.setView(DB_MAP_CENTER, DB_MAP_ZOOM);
       return;
     }
-    const bounds = L.latLngBounds(points.map((s) => [s.lat, s.lng] as [number, number]));
+    const bounds = L.latLngBounds(pts);
     map.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
-  }, [map, points]);
+  }, [map, points, user]);
   return null;
 }
 
@@ -67,6 +81,19 @@ function busIcon(heading: number, label: string) {
     iconSize: [36, 44],
     iconAnchor: [18, 30],
     popupAnchor: [0, -28],
+  });
+}
+
+function userIcon() {
+  return L.divIcon({
+    className: "db-user-icon",
+    html: `<div class="db-user-marker" title="You">
+      <span class="db-user-pulse"></span>
+      <span class="db-user-dot"></span>
+    </div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -12],
   });
 }
 
@@ -157,6 +184,7 @@ export function DbBusMap() {
   const [selectedId, setSelectedId] = useState<string>("db-c4");
   const route = featured.find((r) => r.id === selectedId) ?? featured[0];
   const live = useDbtslLive(route.number);
+  const geo = useGeolocation(true);
 
   const shapeStops: StopPoint[] = useMemo(() => {
     if (live.stops && live.stops.length >= 2) return dbtslStopsToPoints(live.stops);
@@ -208,32 +236,72 @@ export function DbBusMap() {
     return inferDbtslBusesOnRoad(live.stops, road);
   }, [live.stops, roadLine, shapeStops]);
 
-  /** Single source of truth for the status banner — never contradict trackingNote. */
+  const trips: TripFocus[] = useMemo(
+    () => (live.stops?.length ? listActiveTrips(live.stops) : []),
+    [live.stops],
+  );
+
+  const suggestion = useMemo(() => {
+    if (!geo.position) return null;
+    return buildLocationSuggestion({
+      user: geo.position,
+      shapeStops,
+      liveStops: live.stops,
+      buses,
+      trips,
+    });
+  }, [geo.position, shapeStops, live.stops, buses, trips]);
+
+  /** One active trip: prefer location-suggested trip, else soonest ETA. */
+  const activeTrip: TripFocus | null = suggestion?.trip ?? trips[0] ?? null;
+
   const statusBanner = useMemo(() => {
-    const geo = geometryLabel(roadSource, roadBusy);
+    const geoLabel = geometryLabel(roadSource, roadBusy);
     if (!live.query) {
       return {
         mode: "schedule" as const,
-        text: `Schedule / seeded stops only — no eta.dbtsl.com query for this chip. ${geo}`,
+        text: `Schedule / seeded stops only — no eta.dbtsl.com query for this chip. ${geoLabel}`,
       };
     }
     if (live.error && !live.stops) {
       return {
         mode: "schedule" as const,
-        text: `ETA feed error — using seeded stops. ${geo}`,
+        text: `ETA feed error — using seeded stops. ${geoLabel}`,
       };
     }
     if (buses.length > 0) {
       return {
         mode: "eta-inferred" as const,
-        text: `Live stop ETAs (eta.dbtsl.com) — ${buses.length} active trip${buses.length === 1 ? "" : "s"}. Bus icon on road · heading to next stop · not vehicle GPS${live.agoLabel ? ` · ${live.agoLabel}` : ""}. ${geo}`,
+        text: `Live stop ETAs (eta.dbtsl.com) — ${buses.length} active trip${buses.length === 1 ? "" : "s"}. Showing one trip ahead from bus position. Bus icon on road · heading to next stop · not vehicle GPS${live.agoLabel ? ` · ${live.agoLabel}` : ""}. ${geoLabel}`,
       };
     }
     return {
       mode: "eta-inferred" as const,
-      text: `Live stop ETAs available from eta.dbtsl.com — no active trip right now (off-peak / overnight gaps are normal). ${geo}${live.agoLabel ? ` · ${live.agoLabel}` : ""}`,
+      text: `Live stop ETAs available from eta.dbtsl.com — no active trip right now (off-peak / overnight gaps are normal). ${geoLabel}${live.agoLabel ? ` · ${live.agoLabel}` : ""}`,
     };
   }, [live.query, live.error, live.stops, live.agoLabel, buses.length, roadSource, roadBusy]);
+
+  const stopList = useMemo(() => {
+    if (activeTrip) {
+      return activeTrip.upcoming.map((u, i) => ({
+        key: `${activeTrip.tripCode}-${u.stopIndex}-${i}`,
+        seq: i + 1,
+        name: u.name,
+        eta: formatEtaLabel({ etaIso: u.etaIso, minutes: u.minutes }),
+        highlight: suggestion?.nearestStopIndex === u.stopIndex,
+      }));
+    }
+    // No live trip: full seeded/live shape, no mixed-trip ETAs
+    return shapeStops.map((s, i) => ({
+      key: `${s.id}-${i}`,
+      seq: i + 1,
+      name: s.name,
+      eta: null as string | null,
+      highlight: suggestion?.nearestStopIndex === i,
+    }));
+  }, [activeTrip, shapeStops, suggestion?.nearestStopIndex]);
+
+  const userPos = geo.position;
 
   return (
     <section className="db-bus">
@@ -261,7 +329,7 @@ export function DbBusMap() {
           Discovery Bay internal + external DBTSL routes (C4/C9/6, DB01R/DB02R…). Paths snap
           consecutive operator stops to <strong>OSRM driving roads</strong> — not stop-to-stop
           chords. Bus icons use <strong>eta.dbtsl.com</strong> stop ETAs (no vehicle GPS).
-          Auto-refreshes every 20s.
+          Auto-refreshes every 20s. Your GPS suggests nearest stop + likely direction.
         </p>
       </div>
 
@@ -277,6 +345,63 @@ export function DbBusMap() {
           </button>
         ))}
       </div>
+
+      {geo.status === "granted" && suggestion ? (
+        <div className="db-suggest" role="status">
+          <div className="db-suggest-title">{suggestion.summaryLine}</div>
+          <ul className="db-suggest-meta">
+            <li>
+              <strong>Nearest stop:</strong> {suggestion.nearestStopName}
+              {suggestion.walkMins != null ? (
+                <span>
+                  {" "}
+                  · ~{suggestion.walkMins} min walk ({suggestion.walkMeters} m)
+                </span>
+              ) : null}
+            </li>
+            <li>
+              <strong>Next ETA there:</strong>{" "}
+              {suggestion.etaAtNearest ?? "— (bus may have passed / no trip ETA)"}
+            </li>
+            <li>
+              <strong>Bus heading:</strong>{" "}
+              {suggestion.busHeadingLabel
+                ? suggestion.busHeadingLabel
+                : activeTrip
+                  ? `trip ${activeTrip.plate} toward ${activeTrip.upcoming[0]?.name ?? "next stop"}`
+                  : "No active trip right now"}
+            </li>
+          </ul>
+          {activeTrip ? (
+            <p className="note db-suggest-trip">
+              Showing upcoming stops for trip {activeTrip.plate} (one trip at a time).
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="db-suggest db-suggest-muted">
+          {geo.status === "prompting" || geo.status === "idle" ? (
+            <p className="note">Getting your location for stop suggestions…</p>
+          ) : (
+            <>
+              <p className="note">
+                {geo.status === "denied"
+                  ? "Location permission denied — enable it to get nearest-stop suggestions."
+                  : "Location unavailable — enable it to get nearest-stop suggestions."}
+              </p>
+              <button type="button" className="db-loc-btn" onClick={geo.retry}>
+                Enable location for suggestions
+              </button>
+            </>
+          )}
+          {activeTrip ? (
+            <p className="note db-suggest-trip">
+              Showing upcoming stops for trip {activeTrip.plate} (nearest active · one trip at a
+              time).
+            </p>
+          ) : null}
+        </div>
+      )}
 
       <div className="db-route-card">
         <div className="option-top">
@@ -306,7 +431,7 @@ export function DbBusMap() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <FitDb points={shapeStops} />
+          <FitDb points={shapeStops} user={userPos} />
           <Polyline
             positions={line}
             pathOptions={{
@@ -316,33 +441,57 @@ export function DbBusMap() {
               dashArray: roadSource === "stop-chords" ? "8 10" : undefined,
             }}
           />
-          {shapeStops.map((stop, i) => (
-            <CircleMarker
-              key={`${stop.id}-${i}`}
-              center={[stop.lat, stop.lng]}
-              radius={i === 0 || i === shapeStops.length - 1 ? 8 : 5}
-              pathOptions={{
-                color: i === 0 ? "#1d6f42" : i === shapeStops.length - 1 ? "#8b1e1e" : "#c45c26",
-                fillColor:
-                  i === 0 ? "#27ae60" : i === shapeStops.length - 1 ? "#c0392b" : "#f3e0d2",
-                fillOpacity: 1,
-              }}
-            >
-              <Popup>
-                <strong>
-                  {route.number} stop {i + 1}
-                </strong>
-                <br />
-                {stop.name}
-                {stop.nameZh ? ` · ${stop.nameZh}` : ""}
-              </Popup>
-            </CircleMarker>
-          ))}
+          {shapeStops.map((stop, i) => {
+            const isNear = suggestion?.nearestStopIndex === i;
+            const isDest = suggestion?.destStopIndex === i;
+            return (
+              <CircleMarker
+                key={`${stop.id}-${i}`}
+                center={[stop.lat, stop.lng]}
+                radius={isNear || isDest || i === 0 || i === shapeStops.length - 1 ? 8 : 5}
+                pathOptions={{
+                  color: isNear
+                    ? "#1a4f7a"
+                    : isDest
+                      ? "#6b3fa0"
+                      : i === 0
+                        ? "#1d6f42"
+                        : i === shapeStops.length - 1
+                          ? "#8b1e1e"
+                          : "#c45c26",
+                  fillColor: isNear
+                    ? "#3d8bfd"
+                    : isDest
+                      ? "#9b6dde"
+                      : i === 0
+                        ? "#27ae60"
+                        : i === shapeStops.length - 1
+                          ? "#c0392b"
+                          : "#f3e0d2",
+                  fillOpacity: 1,
+                }}
+              >
+                <Popup>
+                  <strong>
+                    {route.number} stop {i + 1}
+                    {isNear ? " · nearest to you" : ""}
+                    {isDest ? " · suggested toward" : ""}
+                  </strong>
+                  <br />
+                  {stop.name}
+                  {stop.nameZh ? ` · ${stop.nameZh}` : ""}
+                </Popup>
+              </CircleMarker>
+            );
+          })}
           {buses.map((bus) => (
             <Marker
               key={bus.id}
               position={[bus.lat, bus.lng]}
               icon={busIcon(bus.heading ?? 0, bus.label)}
+              opacity={
+                activeTrip && bus.id === `dbtsl-${activeTrip.tripCode}` ? 1 : 0.45
+              }
             >
               <Popup>
                 <strong>{route.number} · ETA-inferred</strong>
@@ -365,35 +514,44 @@ export function DbBusMap() {
               </Popup>
             </Marker>
           ))}
+          {userPos ? (
+            <Marker position={[userPos.lat, userPos.lng]} icon={userIcon()} zIndexOffset={800}>
+              <Popup>
+                <strong>You</strong>
+                <br />
+                Live GPS
+                {userPos.accuracyM != null
+                  ? ` · ±${Math.round(userPos.accuracyM)} m`
+                  : ""}
+              </Popup>
+            </Marker>
+          ) : null}
         </MapContainer>
       </div>
 
+      <div className="db-stop-list-head">
+        <h3>
+          {activeTrip
+            ? `Upcoming · trip ${activeTrip.plate}`
+            : "Stops (no active trip ETAs)"}
+        </h3>
+        {trips.length > 1 ? (
+          <span className="note">
+            {trips.length} trips live — showing one chronological list (no mixed-trip time jumps)
+          </span>
+        ) : null}
+      </div>
       <ol className="db-stop-list">
-        {(live.stops ?? route.stops.map((s) => ({
-          stop: s.name,
-          info: [] as string[],
-          time: [] as string[],
-          trip_code: [] as string[],
-          latitude: s.lat,
-          longitude: s.lng,
-          people_cnt: 0,
-        }))).map((stop, i) => {
-          const eta =
-            formatEtaLabel({ etaIso: stop.time?.[0] ?? null }) ??
-            stop.info?.[0] ??
-            null;
-          return (
-            <li key={`${stop.stop}-${i}`}>
-              <span className="seq">{i + 1}</span>
-              <span>
-                {stop.stop}
-                {eta ? (
-                  <span className="db-eta-chip"> · {eta}</span>
-                ) : null}
-              </span>
-            </li>
-          );
-        })}
+        {stopList.map((row) => (
+          <li key={row.key} className={row.highlight ? "near-you" : undefined}>
+            <span className="seq">{row.seq}</span>
+            <span>
+              {row.name}
+              {row.highlight ? <span className="db-near-tag"> · near you</span> : null}
+              {row.eta ? <span className="db-eta-chip"> · {row.eta}</span> : null}
+            </span>
+          </li>
+        ))}
       </ol>
     </section>
   );

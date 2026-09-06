@@ -10,7 +10,7 @@ Vite + React + TypeScript + PWA.
 1. **From → To planner** — curated corridors with bus/ferry/MTR legs, boarding & alight stops, time + adult Octopus fare estimates, walk legs. From/To support **address & building search** (HK ALS + Nominatim).
 2. **Favourites** (localStorage, pre-seeded): DB↔Central, Central→Wan Chai, Sunny Bay→Mong Kok / Sham Shui Po, DB→Tung Chung / Airport, and more.
 3. **Locked-route map** — operator stop sequences snapped to **roads via OSRM** on **key-free OSM tiles**. When KMB/Citybus ETA is available, buses are shown as **ETA-inferred** positions along that polyline. **Never fake GPS.**
-4. **DB buses tab** — Discovery Bay map focused on C4 / C9. Live **stop ETAs** from `eta.dbtsl.com` (official app feed). **No vehicle GPS** — dots are ETA-inferred at the next stop and labeled honestly.
+4. **DB buses tab** — Discovery Bay map (C4/C9/6, DB01R/DB02R…). Live **stop ETAs** from `eta.dbtsl.com`. **No vehicle GPS** — bus icons are ETA-inferred on OSRM roads with heading. **One trip at a time** in the stop list (chronological, no mixed-trip time jumps). Optional **your GPS** suggests nearest stop, walk time, next ETA, and likely direction (near one end → toward the other).
 
 Coverage: Discovery Bay, HK Island, Kowloon, Lantau (Sunny Bay / Tung Chung).
 Operators: KMB, Citybus, DB buses, Lantau routes; **DB↔Central ferry is first-class**.

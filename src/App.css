@@ -374,3 +374,89 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
 }
 .db-bus-marker svg { display: block; overflow: visible; }
+
+
+.db-suggest {
+  background: #eef6ff;
+  border: 1px solid #bfd6f2;
+  border-radius: var(--radius);
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+}
+.db-suggest-muted {
+  background: var(--card);
+  border-color: var(--line);
+}
+.db-suggest-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #1a4f7a;
+}
+.db-suggest-meta {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.86rem;
+  display: grid;
+  gap: 4px;
+}
+.db-suggest-trip { margin: 2px 0 0; }
+.db-loc-btn {
+  justify-self: start;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #1a4f7a;
+  background: #1a4f7a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.db-stop-list-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.db-stop-list-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.db-stop-list li.near-you {
+  border-color: #3d8bfd;
+  background: #f3f8ff;
+}
+.db-near-tag { color: #1a4f7a; font-weight: 700; }
+.db-user-icon {
+  background: transparent !important;
+  border: none !important;
+}
+.db-user-marker {
+  width: 28px;
+  height: 28px;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.db-user-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 2.5px solid #fff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35), 0 1px 3px rgba(0,0,0,0.35);
+  position: relative;
+  z-index: 1;
+}
+.db-user-pulse {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.25);
+  animation: db-user-pulse 2s ease-out infinite;
+}
+@keyframes db-user-pulse {
+  0% { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
