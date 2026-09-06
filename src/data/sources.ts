@@ -22,11 +22,11 @@ export const DATA_SOURCES = {
     note: "Semi-public stop-ETA JSON at eta.dbtsl.com/api/v0 (CORS open; used inside Discovery Bay app). Fields: stop lat/lng, predicted time[], trip_code (incl. plate), people_cnt. No vehicle-position / GPS endpoint — map uses ordered stops + OSRM road geometry; bus icons are ETA-inferred along the road toward the next stop (with heading), never Live GPS. Poll ~20s + manual Refresh. DB buses UX is timetable-first: published clock times from official Discovery Bay app schedule CSVs (dbapp-api-prd.hkricloud.com transport_version/getData → bus_line_schedule / bus_line_schedule_time) are always shown, labeled by unmistakable From-stop origin + direction (hours/minutes grid + “Bus leaves {stop} at…”). Official CSV times are keyed by terminus/From (bus_line_route), not every intermediate stop; From chips switch among published From tables when present (and approx +3 min village tables for routes 1/6 per operator remark). Live feed sits on top when eta.dbtsl.com has active trips; if live is empty the timetable stays — never only “no active trip”. Header pill: live next ETA minutes, else next timetable clock labeled timetable — never a fake ~headway badge.",
   },
   dbFerry: {
-    name: "DB ↔ Central Ferry",
-    url: "https://www.nwff.com.hk/ / DB ferry timetable",
-    coverage: "Discovery Bay ↔ Central Pier 3",
+    name: "DB ↔ Central Ferry (DBTSL)",
+    url: "https://www.td.gov.hk/en/transport_in_hong_kong/public_transport/ferries/service_details/index.html",
+    coverage: "Discovery Bay Ferry Pier ↔ Central Pier 3 (published clock times)",
     liveGps: false,
-    note: "Treated as first-class corridor. Schedule-based ETAs only; no live vessel GPS in open data.",
+    note: "Timetable-first: embedded departures from Transport Department licensed ferry service details (Central – Discovery Bay, effective 26 May 2026). Locked ferry legs show next clock times from the boarding pier (e.g. “Next ferry leaves DB Ferry Pier at 10:05pm (9 mins)”). Map uses a multi-point sea corridor through Victoria Harbour — not a pier-to-pier land chord. No open vessel GPS. Confirm on the day via DB Transport / visitdiscoverybay.com.",
   },
   mtr: {
     name: "MTR (connecting hint)",

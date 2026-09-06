@@ -2,6 +2,7 @@ import { ensureCtbIndex, findCtbDirectLegs } from "../api/ctbIndex";
 import { ensureKmbIndex, findKmbDirectLegs } from "../api/kmbIndex";
 import { planTrips as planCurated } from "../data/corridors";
 import { TRANSFER_HUBS } from "../data/transferHubs";
+import { dbFerrySeaShape, FERRY_SEA_CORRIDOR_NOTE } from "../data/dbFerrySeaPath";
 import type { Place, StopPoint, TripLeg, TripOption } from "../types";
 import {
   estimateBusFareHkd,
@@ -251,14 +252,10 @@ function dbFerryLegsToCentral(): TripLeg[] {
       routeName: "DB ↔ Central Ferry",
       fromStop: pier,
       toStop: central,
-      shape: [
-        pier,
-        sp("mid-harbour", "Victoria Harbour (approx)", 22.2915, 114.089),
-        central,
-      ],
+      shape: dbFerrySeaShape(pier, central),
       durationMin: 30,
       fareHkd: FERRY_FARE,
-      notes: "Schedule-based — check NWFF / DB ferry timetable. No open vessel GPS.",
+      notes: FERRY_SEA_CORRIDOR_NOTE,
       trackingMode: "schedule",
     },
   ];

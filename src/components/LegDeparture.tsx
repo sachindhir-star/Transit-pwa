@@ -1,4 +1,12 @@
+import { useEffect, useState } from "react";
 import { filterUsableEtas, formatEtaLabel, nextDepartureHeadline } from "../lib/formatEta";
+import {
+  ferryTimetableCaption,
+  formatFerryClock,
+  nextFerryDepartures,
+  nextFerryHeadline,
+} from "../lib/dbFerryTimetable";
+import { isDbFerryLeg } from "../data/dbFerrySeaPath";
 import { stopLocationParts } from "../lib/stopLabel";
 import type { LiveEta, TripLeg } from "../types";
 
@@ -20,6 +28,18 @@ export function LegDeparture({ leg, etas, status, error, active }: Props) {
   const headline = nextDepartureHeadline(leg, etas);
   const isBus = leg.mode === "CTB" || leg.mode === "KMB" || leg.mode === "DB";
   const wantsLive = Boolean(leg.eta) || leg.trackingMode === "live-eta";
+  const isDbFerry = isDbFerryLeg(leg);
+
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isDbFerry) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [isDbFerry]);
+
+  const ferryNow = new Date(nowTick);
+  const ferryDeps = isDbFerry ? nextFerryDepartures(leg.fromStop, 4, ferryNow) : [];
+  const ferryHeadline = isDbFerry ? nextFerryHeadline(leg, ferryNow) : null;
 
   return (
     <article className={`leg-depart${active ? " active" : ""}`}>
@@ -43,7 +63,32 @@ export function LegDeparture({ leg, etas, status, error, active }: Props) {
         </div>
       </div>
 
-      {isBus && wantsLive ? (
+      {isDbFerry ? (
+        <div className="leg-depart-eta" role="status">
+          {ferryHeadline ? (
+            <>
+              <p className="leg-depart-headline">{ferryHeadline}</p>
+              {ferryDeps.length > 1 ? (
+                <ul className="leg-depart-etas">
+                  {ferryDeps.map((d, i) => (
+                    <li key={`${d.time}-${i}`}>
+                      <strong>
+                        {formatFerryClock(d)} ({d.minutesUntil} mins)
+                      </strong>
+                      <span> · ferry timetable</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <p className="note">{ferryTimetableCaption()}</p>
+            </>
+          ) : (
+            <p className="leg-depart-headline warn">
+              No published ferry departures right now — confirm DB / TD timetable.
+            </p>
+          )}
+        </div>
+      ) : isBus && wantsLive ? (
         <div className="leg-depart-eta" role="status">
           {status === "loading" && !rows.length ? (
             <p className="leg-depart-headline muted">Fetching live departure…</p>
@@ -77,7 +122,7 @@ export function LegDeparture({ leg, etas, status, error, active }: Props) {
       ) : leg.mode === "WALK" || leg.trackingMode === "walk" ? (
         <p className="note">{leg.notes ?? "Walking leg"}</p>
       ) : leg.mode === "FERRY" ? (
-        <p className="note">{leg.notes ?? "Ferry — check NWFF / DB timetable for departures."}</p>
+        <p className="note">{leg.notes ?? "Ferry — check operator timetable for departures."}</p>
       ) : leg.notes ? (
         <p className="note">{leg.notes}</p>
       ) : null}

@@ -1,4 +1,5 @@
 import type { Place, StopPoint, TripOption } from "../types";
+import { dbFerrySeaShape, FERRY_SEA_CORRIDOR_NOTE } from "./dbFerrySeaPath";
 import { getPlace, PLACES } from "./places";
 
 const sp = (
@@ -41,20 +42,18 @@ function dbToCentralFerry(): TripOption {
     notes: "Walk through DB Plaza to ferry pier",
     trackingMode: "walk" as const,
   };
+  const fromPier = placeStop("db-ferry");
+  const toPier = placeStop("central-pier3");
   const ferry = {
     mode: "FERRY" as const,
     route: "DB-Ferry",
     routeName: "DB ↔ Central Ferry",
-    fromStop: placeStop("db-ferry"),
-    toStop: placeStop("central-pier3"),
-    shape: [
-      placeStop("db-ferry"),
-      sp("mid-harbour", "Victoria Harbour (approx)", 22.2915, 114.089),
-      placeStop("central-pier3"),
-    ],
+    fromStop: fromPier,
+    toStop: toPier,
+    shape: dbFerrySeaShape(fromPier, toPier),
     durationMin: 30,
     fareHkd: F.dbFerry,
-    notes: "Schedule-based — check NWFF / DB ferry timetable. No open vessel GPS.",
+    notes: FERRY_SEA_CORRIDOR_NOTE,
     trackingMode: "schedule" as const,
   };
   return {
@@ -74,22 +73,22 @@ function centralToDbFerry(): TripOption {
     totalMin: 36,
     totalFareHkd: F.dbFerry,
     legs: [
-      {
-        mode: "FERRY",
-        route: "DB-Ferry",
-        routeName: "Central ↔ DB Ferry",
-        fromStop: placeStop("central-pier3"),
-        toStop: placeStop("db-ferry"),
-        shape: [
-          placeStop("central-pier3"),
-          sp("mid-harbour", "Victoria Harbour (approx)", 22.2915, 114.089),
-          placeStop("db-ferry"),
-        ],
-        durationMin: 30,
-        fareHkd: F.dbFerry,
-        notes: "Schedule-based ferry. Board at Central Pier 3.",
-        trackingMode: "schedule",
-      },
+      (() => {
+        const fromPier = placeStop("central-pier3");
+        const toPier = placeStop("db-ferry");
+        return {
+          mode: "FERRY" as const,
+          route: "DB-Ferry",
+          routeName: "Central ↔ DB Ferry",
+          fromStop: fromPier,
+          toStop: toPier,
+          shape: dbFerrySeaShape(fromPier, toPier),
+          durationMin: 30,
+          fareHkd: F.dbFerry,
+          notes: FERRY_SEA_CORRIDOR_NOTE,
+          trackingMode: "schedule" as const,
+        };
+      })(),
       {
         mode: "WALK",
         fromStop: placeStop("db-ferry"),

@@ -10,7 +10,8 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { APPROX_WALK_NOTE, FOOT_WALK_NOTE, isApproxWalkLeg } from "../api/enrichShape";
+import { isApproxWalkLeg, walkBannerText } from "../api/enrichShape";
+import { FERRY_SEA_CORRIDOR_NOTE, isDbFerryLeg } from "../data/dbFerrySeaPath";
 import { inferBusesFromEta } from "../lib/inferBus";
 import { formatEtaLabel } from "../lib/formatEta";
 import type { InferredBus, LiveEta, TripOption } from "../types";
@@ -86,6 +87,8 @@ export function RouteMap({
               ETA unavailable{etaError ? ` — ${etaError}` : ""}. No fake live dots.
             </span>
           )
+        ) : leg && isDbFerryLeg(leg) ? (
+          <span className="banner">{FERRY_SEA_CORRIDOR_NOTE}</span>
         ) : leg?.trackingMode === "schedule" ? (
           <span className="banner warn">
             Schedule / curated corridor — no live vehicle GPS for this operator leg
@@ -95,9 +98,9 @@ export function RouteMap({
         ) : isWalk && enriching && walkApprox ? (
           <span className="banner">Snapping walk to footpaths…</span>
         ) : isWalk && walkApprox ? (
-          <span className="banner warn">{APPROX_WALK_NOTE}</span>
+          <span className="banner warn">{walkBannerText(leg)}</span>
         ) : isWalk ? (
-          <span className="banner">{FOOT_WALK_NOTE}</span>
+          <span className="banner">{walkBannerText(leg)}</span>
         ) : (
           <span className="banner">Route leg</span>
         )}

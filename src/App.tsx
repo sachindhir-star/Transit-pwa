@@ -69,10 +69,11 @@ export default function App() {
   const lockTrip = async (opt: TripOption) => {
     // Show trip immediately with walks labeled approximate until OSRM foot returns.
     setSelected(markWalksApproximate(opt));
-    const firstBus = opt.legs.findIndex(
-      (l) => l.mode === "CTB" || l.mode === "KMB" || l.mode === "DB",
+    // Prefer first transit leg (ferry before connecting bus) so timetable shows immediately.
+    const firstTransit = opt.legs.findIndex(
+      (l) => l.mode !== "WALK" && l.trackingMode !== "walk",
     );
-    setLegIndex(firstBus >= 0 ? firstBus : 0);
+    setLegIndex(firstTransit >= 0 ? firstTransit : 0);
     setEnriching(true);
     try {
       const enriched = await enrichTripShapes(opt);
