@@ -356,6 +356,105 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
   border-radius: 999px;
   padding: 2px 6px;
 }
+
+.db-live-layer {
+  background: #eef6ff;
+  border: 1px solid #b7d4f0;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+.db-live-layer-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #1a4f7a;
+}
+.db-live-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.db-live-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  background: var(--card);
+  border: 1px solid #cfe0f2;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.88rem;
+}
+.db-live-plate { font-weight: 700; }
+.db-live-eta {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #1a4f7a;
+}
+.db-live-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: #1a4f7a;
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+.db-live-next { color: var(--muted); font-size: 0.82rem; }
+.db-timetable-subtitle {
+  font-weight: 650;
+  font-size: 0.78rem;
+  color: #8a6a4a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+.db-tt-grid {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid #ead9c8;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px;
+}
+.db-tt-row {
+  display: grid;
+  grid-template-columns: 3.4rem 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 4px;
+  border-radius: 6px;
+}
+.db-tt-row.past { opacity: 0.45; }
+.db-tt-row.current { background: #fff4e0; }
+.db-tt-hour {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #5c4a3a;
+  font-size: 0.85rem;
+}
+.db-tt-mins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+.db-tt-min { color: #3a2f26; }
+.db-tt-min.past { color: #a09080; }
+.db-tt-min.next {
+  font-weight: 800;
+  color: #c45c26;
+  background: #ffe8d6;
+  border-radius: 4px;
+  padding: 0 4px;
+}
 .db-map-wrap { height: 320px; }
 .db-stop-list {
   margin: 0;

@@ -36,7 +36,9 @@ import {
 import {
   DBTSL_TIMETABLE_VERSION,
   formatScheduledClock,
-  getTimetableRoute,
+  formatTimetablePill,
+  getTodaysSchedule,
+  hkParts,
   nextScheduledDepartures,
 } from "../lib/dbtslTimetable";
 import { useGeolocation } from "../hooks/useGeolocation";
@@ -121,6 +123,14 @@ export function DbBusMap() {
   const live = useDbtslLive(route.number);
   const geo = useGeolocation(true);
 
+  /** Tick so timetable "next" / past-hour styling stays current without fake headways. */
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const now = useMemo(() => new Date(nowTick), [nowTick]);
+
   const shapeStops: StopPoint[] = useMemo(() => {
     if (live.stops && live.stops.length >= 2) return dbtslStopsToPoints(live.stops);
     return route.stops;
@@ -172,29 +182,40 @@ export function DbBusMap() {
     return inferDbtslBusesAllDirections(live.directions, road);
   }, [live.directions, roadLine, shapeStops]);
 
-  /** Published clock times when live feed has no active trips (or no query). */
-  const timetableNext = useMemo(() => {
-    if (buses.length > 0) return [];
-    return nextScheduledDepartures(route.number, 6);
-  }, [buses.length, route.number, live.agoLabel]);
+  /** Always-visible published schedule (timetable-first baseline). */
+  const todaysSchedule = useMemo(
+    () => getTodaysSchedule(route.number, now),
+    [route.number, now],
+  );
+  const timetableNext = useMemo(
+    () => nextScheduledDepartures(route.number, 8, now),
+    [route.number, now],
+  );
+  const hkNow = useMemo(() => hkParts(now), [now]);
 
-  /** Header pill: live next ETA minutes only — never the static headway "~15 min". */
+  /**
+   * Header pill: live next ETA when trips exist; else next timetable clock
+   * labeled "timetable". Never blank, never fake "~headway min".
+   */
   const headerPill = useMemo(() => {
     if (buses.length > 0) {
       const mins = Math.min(...buses.map((b) => b.etaMinutes));
       return {
-        text: mins <= 0 ? "Due" : `${mins} min`,
+        text: mins <= 0 ? "Due · live" : `${mins} min · live`,
         kind: "live" as const,
+      };
+    }
+    if (timetableNext[0]) {
+      return {
+        text: formatTimetablePill(timetableNext[0]),
+        kind: "schedule" as const,
       };
     }
     if (live.query && live.stops === null && !live.error) {
       return { text: "…", kind: "empty" as const };
     }
-    if (!live.query) {
-      return { text: "Timetable", kind: "schedule" as const };
-    }
-    return { text: "No live trip", kind: "empty" as const };
-  }, [buses, live.query, live.stops, live.error]);
+    return { text: "Timetable", kind: "schedule" as const };
+  }, [buses, timetableNext, live.query, live.stops, live.error]);
 
   const trips: TripFocus[] = useMemo(
     () => (live.stops?.length ? listActiveTrips(live.stops) : []),
@@ -217,23 +238,26 @@ export function DbBusMap() {
 
   const statusBanner = useMemo(() => {
     const geoLabel = geometryLabel(roadSource, roadBusy);
+    const ttHint = todaysSchedule
+      ? `Timetable always shown · ${todaysSchedule.stop} · official DBTSL v${DBTSL_TIMETABLE_VERSION}`
+      : "No bundled timetable for this chip";
     if (!live.query) {
       return {
         mode: "schedule" as const,
-        text: `Schedule / seeded stops only — no eta.dbtsl.com query for this chip. ${geoLabel}`,
+        text: `${ttHint}. No eta.dbtsl.com query for this chip — seeded stops only. ${geoLabel}`,
       };
     }
     if (live.error && !live.stops) {
       return {
         mode: "schedule" as const,
-        text: `ETA feed error — using seeded stops. ${geoLabel}`,
+        text: `${ttHint}. Live ETA feed error — map uses seeded stops. ${geoLabel}`,
       };
     }
     if (buses.length > 0) {
       const tripStatus = formatActiveTripsStatus(buses);
       return {
         mode: "eta-inferred" as const,
-        text: `Live stop ETAs (eta.dbtsl.com) — ${tripStatus}. Map shows all buses across directions · heading to next stop · not vehicle GPS${live.agoLabel ? ` · ${live.agoLabel}` : ""}. ${geoLabel}`,
+        text: `Live on top (eta.dbtsl.com) — ${tripStatus}. Map/board show live overlays · not vehicle GPS${live.agoLabel ? ` · ${live.agoLabel}` : ""}. ${ttHint}. ${geoLabel}`,
       };
     }
     const nextBits = timetableNext
@@ -242,9 +266,19 @@ export function DbBusMap() {
       .join(" · ");
     return {
       mode: "schedule" as const,
-      text: `No live trip — showing timetable${nextBits ? ` · next ${nextBits}` : ""} (official DBTSL v${DBTSL_TIMETABLE_VERSION}). ${geoLabel}${live.agoLabel ? ` · ${live.agoLabel}` : ""}`,
+      text: `Live feed idle/empty — timetable stays${nextBits ? ` · next ${nextBits}` : ""}. ${ttHint}${live.agoLabel ? ` · ${live.agoLabel}` : ""}. ${geoLabel}`,
     };
-  }, [live.query, live.error, live.stops, live.agoLabel, buses, roadSource, roadBusy, timetableNext]);
+  }, [
+    live.query,
+    live.error,
+    live.stops,
+    live.agoLabel,
+    buses,
+    roadSource,
+    roadBusy,
+    timetableNext,
+    todaysSchedule,
+  ]);
 
   const stopList = useMemo(() => {
     if (activeTrip) {
@@ -292,13 +326,12 @@ export function DbBusMap() {
           </div>
         </div>
         <p className="note">
-          Discovery Bay internal + external DBTSL routes (C4/C9/6, DB01R/DB02R…). Paths snap
-          consecutive operator stops to <strong>OSRM driving roads</strong> — not stop-to-stop
-          chords. Bus icons use <strong>eta.dbtsl.com</strong> stop ETAs (no vehicle GPS). Bidirectional
-          routes poll <strong>all destinations</strong> and show every active bus on the map.
-          Below the map, selecting <strong>C4</strong> or <strong>C9</strong> shows that route&apos;s
-          column board (one column per active bus, all stops in route order). Auto-refreshes every 20s. Your GPS
-          suggests nearest stop + likely direction.
+          <strong>Timetable-first</strong> (like the official DB app Timetable tab): published
+          clock times from Discovery Bay schedule CSVs are always visible. When{" "}
+          <strong>eta.dbtsl.com</strong> has active trips, a <strong>Live</strong> layer sits on
+          top (bus icons, ETAs, C4/C9 column board). If live is empty, the timetable stays — never
+          only “no active trip”. Paths snap to <strong>OSRM</strong> roads; icons are ETA-inferred
+          (no vehicle GPS). Auto-refresh ~20s; GPS suggests nearest stop.
         </p>
       </div>
 
@@ -338,7 +371,9 @@ export function DbBusMap() {
                 ? suggestion.busHeadingLabel
                 : activeTrip
                   ? `trip ${activeTrip.plate} toward ${activeTrip.upcoming[0]?.name ?? "next stop"}`
-                  : "No active trip right now"}
+                  : todaysSchedule
+                    ? "No live bus right now — see timetable below"
+                    : "No active trip right now"}
             </li>
           </ul>
           {activeTrip ? (
@@ -392,25 +427,93 @@ export function DbBusMap() {
         <div className={`db-track-banner ${statusBanner.mode}`}>
           <span>{statusBanner.text}</span>
         </div>
-        {buses.length === 0 && timetableNext.length > 0 ? (
-          <div className="db-timetable" role="status">
-            <div className="db-timetable-title">
-              Timetable · {timetableNext[0]?.dayLabel ?? "schedule"} ·{" "}
-              {getTimetableRoute(route.number)?.stop ?? "key stop"}
-            </div>
+        {buses.length > 0 ? (
+          <div className="db-live-layer" role="status">
+            <div className="db-live-layer-title">Live · eta.dbtsl.com</div>
             <p className="note db-timetable-note">
-              No live trip on eta.dbtsl.com — published departures (not live ETA).
+              Active trips overlay — map icons + board below. Timetable remains underneath.
             </p>
-            <ul className="db-timetable-list">
-              {timetableNext.map((dep) => (
-                <li key={`${dep.tomorrow ? "t" : "d"}-${dep.time}`}>
-                  <span className="db-timetable-clock">
-                    {formatScheduledClock(dep)}
+            <ul className="db-live-list">
+              {buses.map((bus) => (
+                <li key={bus.id}>
+                  <span className="db-live-plate">{bus.label}</span>
+                  <span className="db-live-eta">
+                    {bus.etaMinutes <= 0 ? "Due" : `${bus.etaMinutes} min`}
                   </span>
-                  <span className="db-timetable-tag">timetable</span>
+                  <span className="db-live-tag">live</span>
+                  {bus.nextStopName ? (
+                    <span className="db-live-next">→ {bus.nextStopName}</span>
+                  ) : null}
                 </li>
               ))}
             </ul>
+          </div>
+        ) : null}
+        {todaysSchedule ? (
+          <div className="db-timetable" role="region" aria-label="Published timetable">
+            <div className="db-timetable-title">
+              Timetable · {todaysSchedule.dayLabel} · {todaysSchedule.stop}
+            </div>
+            <p className="note db-timetable-note">
+              Published schedule (not live ETA) · → {todaysSchedule.endPoint} · official DBTSL v
+              {DBTSL_TIMETABLE_VERSION}
+              {buses.length > 0
+                ? " · shown under live overlay"
+                : " · live feed idle — schedule stays visible"}
+              .
+            </p>
+            {timetableNext.length > 0 ? (
+              <>
+                <div className="db-timetable-subtitle">Next departures</div>
+                <ul className="db-timetable-list">
+                  {timetableNext.map((dep) => (
+                    <li key={`${dep.tomorrow ? "t" : "d"}-${dep.time}`}>
+                      <span className="db-timetable-clock">
+                        {formatScheduledClock(dep)}
+                      </span>
+                      <span className="db-timetable-tag">timetable</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+            <div className="db-timetable-subtitle">Today · hours / minutes</div>
+            <div className="db-tt-grid" role="table" aria-label="Timetable hour grid">
+              {todaysSchedule.byHour.map((row) => {
+                const isCurrentHour = row.hour === hkNow.hour;
+                return (
+                  <div
+                    key={row.hour}
+                    className={`db-tt-row${row.allPast ? " past" : ""}${isCurrentHour ? " current" : ""}`}
+                    role="row"
+                  >
+                    <span className="db-tt-hour" role="rowheader">
+                      {row.label}
+                    </span>
+                    <span className="db-tt-mins" role="cell">
+                      {row.minutes.map((mm) => {
+                        const clock = `${String(row.hour).padStart(2, "0")}:${mm}`;
+                        const minsOf = row.hour * 60 + Number(mm);
+                        const past = minsOf < hkNow.minutesOfDay;
+                        const isNext =
+                          !past &&
+                          timetableNext[0] &&
+                          !timetableNext[0].tomorrow &&
+                          timetableNext[0].time === clock;
+                        return (
+                          <span
+                            key={mm}
+                            className={`db-tt-min${past ? " past" : ""}${isNext ? " next" : ""}`}
+                          >
+                            {mm}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ) : null}
         {live.error && <p className="note">{live.error}</p>}
@@ -543,9 +646,9 @@ export function DbBusMap() {
         <h3>
           {activeTrip
             ? `Upcoming · trip ${activeTrip.plate}`
-            : timetableNext.length > 0
-              ? "Stops (timetable mode — no live ETAs)"
-              : "Stops (no active trip ETAs)"}
+            : todaysSchedule
+              ? "Stops (route shape — departures in Timetable above)"
+              : "Stops"}
         </h3>
         {buses.length > 1 ? (
           <span className="note">

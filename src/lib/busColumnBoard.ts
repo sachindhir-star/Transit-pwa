@@ -12,13 +12,13 @@ export interface RouteBoardDef {
 export const C4_BOARD: RouteBoardDef = {
   route: "C4",
   title: "C4",
-  emptyLabel: "No active C4 trips right now",
+  emptyLabel: "No live C4 trips — timetable above stays visible",
 };
 
 export const C9_BOARD: RouteBoardDef = {
   route: "C9",
   title: "C9",
-  emptyLabel: "No active C9 trips right now",
+  emptyLabel: "No live C9 trips — timetable above stays visible",
 };
 
 export interface ColumnStopEta {

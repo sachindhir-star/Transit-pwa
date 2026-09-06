@@ -1,6 +1,6 @@
 /**
- * Official DBTSL published timetable fallback (Discovery Bay app CSVs).
- * Used when eta.dbtsl.com has no active trips for a route.
+ * Official DBTSL published timetable (Discovery Bay app CSVs).
+ * Always-visible baseline for DB buses UX — live eta.dbtsl.com overlays on top when trips exist.
  */
 import timetableJson from "../data/dbtslTimetable.json" with { type: "json" };
 
@@ -22,6 +22,29 @@ export interface ScheduledDeparture {
   tomorrow: boolean;
   dayType: DayType;
   dayLabel: string;
+}
+
+export interface HourBucket {
+  /** 0–23 */
+  hour: number;
+  /** "18:00" style hour label */
+  label: string;
+  /** Minute strings "00","08","18"… */
+  minutes: string[];
+  /** True when every slot in this hour is already past (HK today) */
+  allPast: boolean;
+}
+
+export interface TodaysSchedule {
+  routeNumber: string;
+  stop: string;
+  endPoint: string;
+  dayType: DayType;
+  dayLabel: string;
+  /** All HH:MM for today's day-type table */
+  times: string[];
+  /** Grouped for Timetable-tab style hour/minute grid */
+  byHour: HourBucket[];
 }
 
 interface TimetableFile {
@@ -117,12 +140,85 @@ function parseHhMm(t: string): number | null {
   return h * 60 + min;
 }
 
+function dayLabelFor(route: TimetableRoute, dayType: DayType): string {
+  return (
+    route.dayLabels[dayType] ??
+    (dayType === "monThu"
+      ? "Mon - Thu"
+      : dayType === "fri"
+        ? "Fri & PH Eve"
+        : dayType === "sat"
+          ? "Saturday"
+          : "Sunday & PH")
+  );
+}
+
+function timesForDay(route: TimetableRoute, dayType: DayType): string[] {
+  return (
+    route.departures[dayType] ??
+    route.departures.monThu ??
+    route.departures.sat ??
+    []
+  );
+}
+
 export function getTimetableRoute(routeNumber: string): TimetableRoute | null {
   return data.routes[routeNumber] ?? null;
 }
 
+/** Group HH:MM clock times into Timetable-tab style hour rows. */
+export function groupDeparturesByHour(
+  times: string[],
+  minutesOfDay: number,
+): HourBucket[] {
+  const map = new Map<number, string[]>();
+  for (const time of times) {
+    const mins = parseHhMm(time);
+    if (mins == null) continue;
+    const hour = Math.floor(mins / 60);
+    const mm = pad2(mins % 60);
+    const list = map.get(hour) ?? [];
+    list.push(mm);
+    map.set(hour, list);
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([hour, minutes]) => {
+      const hourStart = hour * 60;
+      const hourEnd = hourStart + 59;
+      return {
+        hour,
+        label: `${pad2(hour)}:00`,
+        minutes,
+        allPast: hourEnd < minutesOfDay,
+      };
+    });
+}
+
+/** Full published table for today (HK day-type), for the always-visible timetable layer. */
+export function getTodaysSchedule(
+  routeNumber: string,
+  now: Date = new Date(),
+): TodaysSchedule | null {
+  const route = getTimetableRoute(routeNumber);
+  if (!route) return null;
+  const today = hkParts(now);
+  const dayType = dayTypeForYmd(today.ymd, today.weekday);
+  const times = timesForDay(route, dayType);
+  if (!times.length) return null;
+  return {
+    routeNumber,
+    stop: route.stop,
+    endPoint: route.endPoint,
+    dayType,
+    dayLabel: dayLabelFor(route, dayType),
+    times,
+    byHour: groupDeparturesByHour(times, today.minutesOfDay),
+  };
+}
+
 /**
- * Next published departures at the route's primary stop (usually DB Plaza).
+ * Next published departures at the route's primary stop (Plaza / key terminus).
  * Wraps to tomorrow's table when today's remaining slots are exhausted.
  */
 export function nextScheduledDepartures(
@@ -141,20 +237,8 @@ export function nextScheduledDepartures(
     const weekday =
       dayOffset === 0 ? today.weekday : (today.weekday + dayOffset) % 7;
     const dayType = dayTypeForYmd(ymd, weekday);
-    const times =
-      route.departures[dayType] ??
-      route.departures.monThu ??
-      route.departures.sat ??
-      [];
-    const dayLabel =
-      route.dayLabels[dayType] ??
-      (dayType === "monThu"
-        ? "Mon - Thu"
-        : dayType === "fri"
-          ? "Fri & PH Eve"
-          : dayType === "sat"
-            ? "Saturday"
-            : "Sunday & PH");
+    const times = timesForDay(route, dayType);
+    const dayLabel = dayLabelFor(route, dayType);
 
     for (const time of times) {
       const mins = parseHhMm(time);
@@ -182,4 +266,10 @@ export function nextScheduledDepartures(
 
 export function formatScheduledClock(dep: ScheduledDeparture): string {
   return dep.tomorrow ? `${dep.time} (tomorrow)` : dep.time;
+}
+
+/** Header badge text for next timetable slot (never a fake headway). */
+export function formatTimetablePill(dep: ScheduledDeparture): string {
+  const clock = formatScheduledClock(dep);
+  return `${clock} · timetable`;
 }
