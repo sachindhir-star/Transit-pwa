@@ -11,6 +11,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { inferBusesFromEta } from "../lib/inferBus";
+import { formatEtaLabel } from "../lib/formatEta";
 import type { InferredBus, LiveEta, TripOption } from "../types";
 
 const busIcon = (label: string) =>
@@ -128,7 +129,7 @@ export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Pr
               <Popup>
                 <strong>ETA-inferred position</strong>
                 <br />
-                Next stop ETA ≈ {b.etaMinutes} min
+                Next stop ETA ≈ {formatEtaLabel({ minutes: b.etaMinutes }) ?? `${b.etaMinutes} mins`}
                 <br />
                 <em>Not a GPS fix — placed from ETA along route shape.</em>
               </Popup>
@@ -140,7 +141,7 @@ export function RouteMap({ trip, etas, etaStatus, etaError, activeLegIndex }: Pr
         <ul className="eta-list">
           {etas.slice(0, 3).map((e, i) => (
             <li key={i}>
-              <strong>{e.minutes != null ? `${e.minutes} min` : "—"}</strong>
+              <strong>{formatEtaLabel({ etaIso: e.etaIso, minutes: e.minutes }) ?? "—"}</strong>
               <span> → {e.dest || "destination"}</span>
               {e.remark ? <span className="rmk"> · {e.remark}</span> : null}
             </li>

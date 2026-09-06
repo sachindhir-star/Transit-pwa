@@ -1,4 +1,5 @@
 import { fetchJson } from "./client";
+import { formatEtaLabel } from "../lib/formatEta";
 import type { InferredBus, StopPoint } from "../types";
 
 /** Official DBTSL ETA site used inside the Discovery Bay app WebView. CORS is open. */
@@ -104,7 +105,7 @@ export function inferDbtslBusesFromStops(stops: DbtslStopEta[]): InferredBus[] {
       lat: hit.stop.latitude,
       lng: hit.stop.longitude,
       etaMinutes: hit.minutes,
-      label: `${plate} · ${hit.minutes} min → ${hit.stop.stop} · ETA-inferred (not GPS)`,
+      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop} · ETA-inferred (not GPS)`,
       mode: "eta-inferred",
     });
   }

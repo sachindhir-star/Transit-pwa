@@ -1,4 +1,5 @@
 import type { InferredBus, LiveEta, StopPoint } from "../types";
+import { formatEtaLabel } from "./formatEta";
 
 /** Linear interpolate along polyline by fraction t in [0,1]. */
 function along(shape: StopPoint[], t: number): { lat: number; lng: number } {
@@ -42,7 +43,7 @@ export function inferBusesFromEta(
         lat: pos.lat,
         lng: pos.lng,
         etaMinutes: m,
-        label: `${m} min · ETA-inferred (not GPS)`,
+        label: `${formatEtaLabel({ etaIso: e.etaIso, minutes: m }) ?? `${m} mins`} · ETA-inferred (not GPS)`,
         mode: "eta-inferred" as const,
       };
     });

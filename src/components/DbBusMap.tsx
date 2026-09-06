@@ -21,6 +21,7 @@ import {
   inferDbtslBusesFromStops,
   type DbtslStopEta,
 } from "../api/dbtslEta";
+import { formatEtaLabel } from "../lib/formatEta";
 import type { InferredBus, StopPoint } from "../types";
 
 const POLL_MS = 20_000;
@@ -231,13 +232,10 @@ export function DbBusMap() {
           longitude: s.lng,
           people_cnt: 0,
         }))).map((stop, i) => {
-          const eta = stop.info?.[0] || (stop.time?.[0]
-            ? new Date(stop.time[0]).toLocaleTimeString("en-HK", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              })
-            : null);
+          const eta =
+            formatEtaLabel({ etaIso: stop.time?.[0] ?? null }) ??
+            stop.info?.[0] ??
+            null;
           return (
             <li key={`${stop.stop}-${i}`}>
               <span className="seq">{i + 1}</span>
