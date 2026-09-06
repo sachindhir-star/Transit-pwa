@@ -49,6 +49,7 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    allowedHosts: true,
     proxy: {
       "/api/kmb": {
         target: "https://data.etabus.gov.hk",
@@ -61,5 +62,10 @@ export default defineConfig({
         rewrite: (p) => p.replace(/^\/api\/ctb/, "/v2/transport/citybus"),
       },
     },
+  },
+  preview: {
+    host: "127.0.0.1",
+    port: 5178,
+    allowedHosts: true,
   },
 });
