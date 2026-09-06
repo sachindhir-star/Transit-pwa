@@ -17,8 +17,8 @@ function formatAgo(updatedAtMs: number | null, nowMs: number): string {
 }
 
 /** Poll eta.dbtsl.com stop ETAs for a DBTSL route number (~20s). */
-export function useDbtslLive(routeNumber: string) {
-  const query = DBTSL_ETA_QUERIES[routeNumber];
+export function useDbtslLive(routeNumber: string | null) {
+  const query = routeNumber ? DBTSL_ETA_QUERIES[routeNumber] : undefined;
   const [stops, setStops] = useState<DbtslStopEta[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [updatedAtMs, setUpdatedAtMs] = useState<number | null>(null);
@@ -55,12 +55,13 @@ export function useDbtslLive(routeNumber: string) {
 
   useEffect(() => {
     void load(false);
+    if (!query) return;
     const id = window.setInterval(() => void load(false), POLL_MS);
     return () => {
       gen.current += 1;
       window.clearInterval(id);
     };
-  }, [load]);
+  }, [load, query]);
 
   useEffect(() => {
     const id = window.setInterval(() => setTick(Date.now()), 1000);

@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import type { DbtslStopEta } from "../api/dbtslEta";
 import {
   buildBusColumns,
   C4_BOARD,
@@ -56,29 +55,66 @@ function BusColumn({ col }: { col: BusColumnModel }) {
   );
 }
 
-function RoutePanel({
-  def,
-  stops,
-  loading,
-}: {
-  def: RouteBoardDef;
-  stops: DbtslStopEta[] | null;
-  loading: boolean;
-}) {
-  const columns = useMemo(() => buildBusColumns(stops, def), [stops, def]);
+function boardDefFor(routeNumber: string): RouteBoardDef | null {
+  if (routeNumber === "C4") return C4_BOARD;
+  if (routeNumber === "C9") return C9_BOARD;
+  return null;
+}
+
+/**
+ * Glanceable per-route board for C4 or C9 (never both at once).
+ * One vertical column per active trip; fixed landmarks
+ * Coastline/Crestmont → Main Plaza → North Plaza.
+ */
+export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
+  const def = boardDefFor(routeNumber);
+  const live = useDbtslLive(def ? routeNumber : null);
+
+  const columns = useMemo(
+    () => (def ? buildBusColumns(live.stops, def) : []),
+    [live.stops, def],
+  );
+
+  if (!def) return null;
+
+  const loading = !live.stops && !live.error;
+  const title = `${def.route} board`;
 
   return (
-    <section className="bcb-panel" aria-label={`${def.title} bus board`}>
-      <header className="bcb-panel-head">
-        <h3>{def.title}</h3>
-        <span className="bcb-panel-meta">
-          {columns.length > 0
-            ? `${columns.length} active`
-            : loading
-              ? "Loading…"
-              : "Idle"}
-        </span>
-      </header>
+    <section className="bcb" aria-label={title}>
+      <div className="bcb-head">
+        <div>
+          <h3 className="bcb-title">{title}</h3>
+          <p className="note">
+            One column per active bus · fixed landmarks · clock ETA + mins · blue
+            dot is ETA-inferred (not Live GPS)
+          </p>
+        </div>
+        <div className="db-live-controls">
+          {live.agoLabel ? (
+            <span className="db-updated" aria-live="polite">
+              {live.agoLabel}
+            </span>
+          ) : null}
+          <span className="bcb-panel-meta" aria-live="polite">
+            {columns.length > 0
+              ? `${columns.length} active`
+              : loading
+                ? "Loading…"
+                : "Idle"}
+          </span>
+          <button
+            type="button"
+            className="db-refresh"
+            onClick={live.refresh}
+            disabled={live.refreshing}
+            aria-label={`Refresh ${title}`}
+          >
+            {live.refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+      </div>
+
       {columns.length === 0 ? (
         <p className="bcb-empty">{def.emptyLabel}</p>
       ) : (
@@ -88,66 +124,6 @@ function RoutePanel({
           ))}
         </div>
       )}
-    </section>
-  );
-}
-
-/**
- * Glanceable C4 | C9 board: one vertical column per active trip,
- * fixed landmarks Coastline/Crestmont → Main Plaza → North Plaza.
- */
-export function BusColumnBoard() {
-  const c4 = useDbtslLive("C4");
-  const c9 = useDbtslLive("C9");
-
-  const refreshing = c4.refreshing || c9.refreshing;
-  const ago = c4.agoLabel || c9.agoLabel;
-
-  const refreshBoth = () => {
-    c4.refresh();
-    c9.refresh();
-  };
-
-  return (
-    <section className="bcb" aria-label="C4 and C9 bus column board">
-      <div className="bcb-head">
-        <div>
-          <h3 className="bcb-title">C4 · C9 board</h3>
-          <p className="note">
-            One column per active bus · fixed landmarks · clock ETA + mins · blue
-            dot is ETA-inferred (not Live GPS)
-          </p>
-        </div>
-        <div className="db-live-controls">
-          {ago ? (
-            <span className="db-updated" aria-live="polite">
-              {ago}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            className="db-refresh"
-            onClick={refreshBoth}
-            disabled={refreshing}
-            aria-label="Refresh C4 and C9 board"
-          >
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
-      </div>
-
-      <div className="bcb-grid">
-        <RoutePanel
-          def={C4_BOARD}
-          stops={c4.stops}
-          loading={!c4.stops && !c4.error}
-        />
-        <RoutePanel
-          def={C9_BOARD}
-          stops={c9.stops}
-          loading={!c9.stops && !c9.error}
-        />
-      </div>
     </section>
   );
 }

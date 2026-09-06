@@ -462,7 +462,7 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
 }
 
 
-/* —— C4 / C9 bus column board —— */
+/* —— C4 or C9 bus column board (selected chip) —— */
 .bcb {
   display: grid;
   gap: 10px;
@@ -483,39 +483,11 @@ h2 { margin: 0 0 8px; font-size: 1.05rem; }
   font-size: 1rem;
 }
 .bcb-head .note { margin: 4px 0 0; }
-.bcb-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  align-items: stretch;
-}
-@media (max-width: 420px) {
-  .bcb-grid { grid-template-columns: 1fr; }
-}
-.bcb-panel {
-  background: #fffaf4;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px;
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-.bcb-panel-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-.bcb-panel-head h3 {
-  margin: 0;
-  font-size: 1.05rem;
-  letter-spacing: -0.02em;
-}
 .bcb-panel-meta {
   font-size: 0.75rem;
   color: var(--muted);
   font-weight: 600;
+  align-self: center;
 }
 .bcb-empty {
   margin: 0;

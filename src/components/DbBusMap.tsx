@@ -257,8 +257,9 @@ export function DbBusMap() {
           Discovery Bay internal + external DBTSL routes (C4/C9/6, DB01R/DB02R…). Paths snap
           consecutive operator stops to <strong>OSRM driving roads</strong> — not stop-to-stop
           chords. Bus icons use <strong>eta.dbtsl.com</strong> stop ETAs (no vehicle GPS).
-          Below the map, the <strong>C4 · C9 board</strong> shows one column per active bus with
-          fixed landmarks. Auto-refreshes every 20s. Your GPS suggests nearest stop + likely direction.
+          Below the map, selecting <strong>C4</strong> or <strong>C9</strong> shows that route&apos;s
+          column board (one column per active bus, fixed landmarks). Auto-refreshes every 20s. Your GPS
+          suggests nearest stop + likely direction.
         </p>
       </div>
 
@@ -458,7 +459,7 @@ export function DbBusMap() {
         </MapContainer>
       </div>
 
-      <BusColumnBoard />
+      <BusColumnBoard routeNumber={route.number} />
 
       <div className="db-stop-list-head">
         <h3>
