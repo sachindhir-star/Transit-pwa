@@ -92,13 +92,13 @@ export function PlacePicker({ label, value, onChange, excludeId }: Props) {
         <div className="picker-dropdown">
           <input
             className="picker-search"
-            placeholder="Address, building, IFC, Pacific Place…"
+            placeholder="Shop, restaurant, mall, address…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             autoFocus
           />
           {remoteStatus === "loading" && (
-            <p className="picker-hint">Searching HK addresses…</p>
+            <p className="picker-hint">Searching places & addresses…</p>
           )}
           {remoteStatus === "error" && (
             <p className="picker-hint">Remote search failed — curated places still work.</p>
@@ -125,7 +125,12 @@ export function PlacePicker({ label, value, onChange, excludeId }: Props) {
                   <button type="button" onClick={() => pick(hitToPlace(h))}>
                     <strong>{h.name}</strong>
                     <span className="meta">
-                      {h.source === "als" ? "HK address" : "OpenStreetMap"} · {h.areaLabel}
+                      {h.source === "als"
+                        ? "HK address"
+                        : h.source === "overpass"
+                          ? "OSM POI"
+                          : "OpenStreetMap"}{" "}
+                      · {h.areaLabel}
                       {h.nameZh ? ` · ${h.nameZh}` : ""}
                     </span>
                   </button>
@@ -133,7 +138,7 @@ export function PlacePicker({ label, value, onChange, excludeId }: Props) {
               );
             })}
             {!rows.length && q.trim().length >= 2 && remoteStatus === "done" && (
-              <li className="picker-empty">No matches — try another building or street.</li>
+              <li className="picker-empty">No matches — try a shop name, mall, or street address.</li>
             )}
           </ul>
         </div>
