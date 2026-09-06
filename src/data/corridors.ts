@@ -1,0 +1,716 @@
+import type { Place, StopPoint, TripOption } from "../types";
+import { getPlace } from "./places";
+
+const sp = (
+  id: string,
+  name: string,
+  lat: number,
+  lng: number,
+  extra?: Partial<StopPoint>,
+): StopPoint => ({ id, name, lat, lng, ...extra });
+
+/** Approximate adult Octopus single fares (HKD) — labeled estimates. */
+const F = {
+  dbFerry: 54.7,
+  dbInternal: 4.6,
+  dbExternal: 12.8,
+  islandShort: 5.8,
+  crossHarbour: 12.1,
+  eRoute: 14.0,
+  aRoute: 33.0,
+  mtrIsland: 5.5,
+  mtrCross: 11.0,
+  mtrTungChung: 15.8,
+  walk: 0,
+};
+
+function placeStop(placeId: string, label?: string): StopPoint {
+  const p = getPlace(placeId)!;
+  return sp(placeId, label ?? p.name, p.lat, p.lng, { nameZh: p.nameZh });
+}
+
+/** Build DB Plaza → Central Pier via ferry (first-class). */
+function dbToCentralFerry(): TripOption {
+  const walkToPier = {
+    mode: "WALK" as const,
+    fromStop: placeStop("db-plaza"),
+    toStop: placeStop("db-ferry"),
+    shape: [placeStop("db-plaza"), placeStop("db-ferry")],
+    durationMin: 6,
+    fareHkd: F.walk,
+    notes: "Walk through DB Plaza to ferry pier",
+    trackingMode: "walk" as const,
+  };
+  const ferry = {
+    mode: "FERRY" as const,
+    route: "DB-Ferry",
+    routeName: "DB ↔ Central Ferry",
+    fromStop: placeStop("db-ferry"),
+    toStop: placeStop("central-pier3"),
+    shape: [
+      placeStop("db-ferry"),
+      sp("mid-harbour", "Victoria Harbour (approx)", 22.2915, 114.089),
+      placeStop("central-pier3"),
+    ],
+    durationMin: 30,
+    fareHkd: F.dbFerry,
+    notes: "Schedule-based — check NWFF / DB ferry timetable. No open vessel GPS.",
+    trackingMode: "schedule" as const,
+  };
+  return {
+    id: "db-central-ferry",
+    summary: "Walk + DB Ferry → Central Pier 3",
+    totalMin: 36,
+    totalFareHkd: F.dbFerry,
+    legs: [walkToPier, ferry],
+    tags: ["ferry", "recommended", "schedule"],
+  };
+}
+
+function centralToDbFerry(): TripOption {
+  return {
+    id: "central-db-ferry",
+    summary: "Central Pier 3 → DB Ferry + walk to Plaza",
+    totalMin: 36,
+    totalFareHkd: F.dbFerry,
+    legs: [
+      {
+        mode: "FERRY",
+        route: "DB-Ferry",
+        routeName: "Central ↔ DB Ferry",
+        fromStop: placeStop("central-pier3"),
+        toStop: placeStop("db-ferry"),
+        shape: [
+          placeStop("central-pier3"),
+          sp("mid-harbour", "Victoria Harbour (approx)", 22.2915, 114.089),
+          placeStop("db-ferry"),
+        ],
+        durationMin: 30,
+        fareHkd: F.dbFerry,
+        notes: "Schedule-based ferry. Board at Central Pier 3.",
+        trackingMode: "schedule",
+      },
+      {
+        mode: "WALK",
+        fromStop: placeStop("db-ferry"),
+        toStop: placeStop("db-plaza"),
+        shape: [placeStop("db-ferry"), placeStop("db-plaza")],
+        durationMin: 6,
+        fareHkd: 0,
+        trackingMode: "walk",
+      },
+    ],
+    tags: ["ferry", "recommended", "schedule"],
+  };
+}
+
+function centralToWanChaiBus(): TripOption {
+  return {
+    id: "central-wc-ctb1",
+    summary: "Citybus 1 / walk via harbourfront",
+    totalMin: 18,
+    totalFareHkd: F.islandShort,
+    legs: [
+      {
+        mode: "CTB",
+        route: "1",
+        routeName: "Citybus 1",
+        direction: "inbound",
+        fromStop: sp("ctb-cen", "Central (Macao Ferry / vicinity)", 22.2878, 114.1515, {
+          operatorStopId: "001125",
+        }),
+        toStop: sp("ctb-wc", "Wan Chai (Hennessy Rd)", 22.2778, 114.1725),
+        shape: [
+          sp("a", "Central", 22.2878, 114.1515),
+          sp("b", "Admiralty", 22.2795, 114.1655),
+          sp("c", "Wan Chai", 22.2778, 114.1725),
+        ],
+        durationMin: 15,
+        fareHkd: F.islandShort,
+        notes: "Live ETA via Citybus API when stop ID resolves.",
+        eta: { operator: "CTB", stopId: "001125", route: "1" },
+        trackingMode: "live-eta",
+      },
+    ],
+    tags: ["bus", "live-eta"],
+  };
+}
+
+function centralToWanChaiMtr(): TripOption {
+  return {
+    id: "central-wc-mtr",
+    summary: "MTR Island Line (connecting hint)",
+    totalMin: 10,
+    totalFareHkd: F.mtrIsland,
+    legs: [
+      {
+        mode: "WALK",
+        fromStop: placeStop("central-mtr"),
+        toStop: placeStop("central-mtr"),
+        shape: [placeStop("central-mtr")],
+        durationMin: 2,
+        fareHkd: 0,
+        notes: "Enter Central MTR",
+        trackingMode: "walk",
+      },
+      {
+        mode: "MTR",
+        route: "ISL",
+        routeName: "Island Line → Wan Chai",
+        fromStop: placeStop("central-mtr"),
+        toStop: placeStop("wan-chai"),
+        shape: [placeStop("central-mtr"), placeStop("admiralty"), placeStop("wan-chai")],
+        durationMin: 6,
+        fareHkd: F.mtrIsland,
+        notes: "MTR connecting hint — not a live train tracker.",
+        trackingMode: "mtr-hint",
+      },
+    ],
+    tags: ["mtr", "fast"],
+  };
+}
+
+function wanChaiToCentralMtr(): TripOption {
+  return {
+    id: "wc-central-mtr",
+    summary: "MTR Island Line → Central",
+    totalMin: 10,
+    totalFareHkd: F.mtrIsland,
+    legs: [
+      {
+        mode: "MTR",
+        route: "ISL",
+        routeName: "Island Line → Central",
+        fromStop: placeStop("wan-chai"),
+        toStop: placeStop("central-mtr"),
+        shape: [placeStop("wan-chai"), placeStop("admiralty"), placeStop("central-mtr")],
+        durationMin: 8,
+        fareHkd: F.mtrIsland,
+        trackingMode: "mtr-hint",
+      },
+    ],
+    tags: ["mtr", "fast"],
+  };
+}
+
+function sunnyBayToMongKok(): TripOption[] {
+  return [
+    {
+      id: "sunny-mk-mtr",
+      summary: "MTR Tung Chung Line → Nam Cheong / transfer → Mong Kok",
+      totalMin: 35,
+      totalFareHkd: F.mtrTungChung,
+      legs: [
+        {
+          mode: "MTR",
+          route: "TCL",
+          routeName: "Tung Chung Line",
+          fromStop: placeStop("sunny-bay"),
+          toStop: sp("nam-cheong", "Nam Cheong", 22.3246, 114.1537),
+          shape: [
+            placeStop("sunny-bay"),
+            sp("tsing-yi", "Tsing Yi", 22.3583, 114.107),
+            sp("nam-cheong", "Nam Cheong", 22.3246, 114.1537),
+          ],
+          durationMin: 18,
+          fareHkd: F.mtrTungChung,
+          notes: "Change at Nam Cheong or Olympic/Kowloon for Mong Kok area.",
+          trackingMode: "mtr-hint",
+        },
+        {
+          mode: "MTR",
+          route: "TWL",
+          routeName: "Transfer → Mong Kok",
+          fromStop: sp("nam-cheong", "Nam Cheong", 22.3246, 114.1537),
+          toStop: placeStop("mong-kok"),
+          shape: [
+            sp("nam-cheong", "Nam Cheong", 22.3246, 114.1537),
+            placeStop("sham-shui-po"),
+            placeStop("mong-kok"),
+          ],
+          durationMin: 12,
+          fareHkd: 0,
+          notes: "Included in Octopus journey fare estimate above.",
+          trackingMode: "mtr-hint",
+        },
+      ],
+      tags: ["mtr", "recommended"],
+    },
+    {
+      id: "sunny-mk-e21",
+      summary: "Citybus E21 corridor (via Tai Kok Tsui / Mong Kok west)",
+      totalMin: 45,
+      totalFareHkd: F.eRoute,
+      legs: [
+        {
+          mode: "WALK",
+          fromStop: placeStop("sunny-bay"),
+          toStop: sp("sunny-bus", "Sunny Bay BBI / bus stop", 22.3318, 114.0295),
+          shape: [placeStop("sunny-bay"), sp("sunny-bus", "Sunny Bay bus", 22.3318, 114.0295)],
+          durationMin: 5,
+          fareHkd: 0,
+          trackingMode: "walk",
+        },
+        {
+          mode: "CTB",
+          route: "E21",
+          routeName: "Citybus E21",
+          direction: "outbound",
+          fromStop: sp("e21-lantau", "Lantau Link / Airport corridor", 22.331, 114.03, {
+            operatorStopId: "001603",
+          }),
+          toStop: sp("e21-tkt", "Tai Kok Tsui / Mong Kok west", 22.3215, 114.161),
+          shape: [
+            sp("s1", "Sunny Bay area", 22.331, 114.03),
+            sp("s2", "Tsing Yi", 22.35, 114.11),
+            sp("s3", "Olympic / Tai Kok Tsui", 22.318, 114.16),
+            sp("s4", "Mong Kok west", 22.3215, 114.161),
+          ],
+          durationMin: 40,
+          fareHkd: F.eRoute,
+          notes: "E21 serves Tai Kok Tsui (Island Harbourview) — short walk to Mong Kok. Live ETA when available.",
+          eta: { operator: "CTB", stopId: "001603", route: "E21" },
+          trackingMode: "live-eta",
+        },
+      ],
+      tags: ["bus", "live-eta"],
+    },
+  ];
+}
+
+function mongKokToSunnyBay(): TripOption[] {
+  return [
+    {
+      id: "mk-sunny-mtr",
+      summary: "MTR → Tung Chung Line → Sunny Bay",
+      totalMin: 35,
+      totalFareHkd: F.mtrTungChung,
+      legs: [
+        {
+          mode: "MTR",
+          route: "TWL+TCL",
+          routeName: "To Nam Cheong / Tung Chung Line → Sunny Bay",
+          fromStop: placeStop("mong-kok"),
+          toStop: placeStop("sunny-bay"),
+          shape: [
+            placeStop("mong-kok"),
+            placeStop("sham-shui-po"),
+            sp("nam-cheong", "Nam Cheong", 22.3246, 114.1537),
+            sp("tsing-yi", "Tsing Yi", 22.3583, 114.107),
+            placeStop("sunny-bay"),
+          ],
+          durationMin: 35,
+          fareHkd: F.mtrTungChung,
+          trackingMode: "mtr-hint",
+        },
+      ],
+      tags: ["mtr", "recommended"],
+    },
+  ];
+}
+
+function sunnyBayToSsp(): TripOption[] {
+  return [
+    {
+      id: "sunny-ssp-mtr",
+      summary: "MTR Tung Chung Line → Nam Cheong → Sham Shui Po",
+      totalMin: 28,
+      totalFareHkd: F.mtrTungChung,
+      legs: [
+        {
+          mode: "MTR",
+          route: "TCL",
+          routeName: "Tung Chung Line + short transfer",
+          fromStop: placeStop("sunny-bay"),
+          toStop: placeStop("sham-shui-po"),
+          shape: [
+            placeStop("sunny-bay"),
+            sp("tsing-yi", "Tsing Yi", 22.3583, 114.107),
+            sp("nam-cheong", "Nam Cheong", 22.3246, 114.1537),
+            placeStop("sham-shui-po"),
+          ],
+          durationMin: 28,
+          fareHkd: F.mtrTungChung,
+          trackingMode: "mtr-hint",
+        },
+      ],
+      tags: ["mtr", "recommended"],
+    },
+  ];
+}
+
+function dbToTungChung(): TripOption[] {
+  return [
+    {
+      id: "db-tc-db03",
+      summary: "DB external bus toward Tung Chung (schedule)",
+      totalMin: 40,
+      totalFareHkd: F.dbExternal,
+      legs: [
+        {
+          mode: "DB",
+          route: "DB03R",
+          routeName: "DB external (Tung Chung link — schedule)",
+          fromStop: placeStop("db-plaza"),
+          toStop: placeStop("tung-chung"),
+          shape: [
+            placeStop("db-plaza"),
+            sp("db-tunnel", "DB tunnel / North Lantau", 22.31, 113.98),
+            placeStop("tung-chung"),
+          ],
+          durationMin: 40,
+          fareHkd: F.dbExternal,
+          notes: "DBTSL external route — no open ETA API. Confirm timetable on hkdb / operator site.",
+          trackingMode: "schedule",
+        },
+      ],
+      tags: ["db-bus", "schedule"],
+    },
+    {
+      id: "db-tc-ferry-mtr",
+      summary: "Ferry → Central → MTR → Tung Chung (long but reliable)",
+      totalMin: 95,
+      totalFareHkd: F.dbFerry + F.mtrTungChung,
+      legs: [
+        ...dbToCentralFerry().legs,
+        {
+          mode: "MTR",
+          route: "TCL",
+          routeName: "Tung Chung Line from Hong Kong / Kowloon",
+          fromStop: placeStop("central-mtr"),
+          toStop: placeStop("tung-chung"),
+          shape: [
+            placeStop("central-mtr"),
+            placeStop("sunny-bay"),
+            placeStop("tung-chung"),
+          ],
+          durationMin: 35,
+          fareHkd: F.mtrTungChung,
+          trackingMode: "mtr-hint",
+        },
+      ],
+      tags: ["ferry", "mtr"],
+    },
+  ];
+}
+
+function dbToAirport(): TripOption[] {
+  return [
+    {
+      id: "db-airport-via-tc",
+      summary: "DB bus → Tung Chung → Airport bus/AEL hint",
+      totalMin: 55,
+      totalFareHkd: F.dbExternal + 4,
+      legs: [
+        {
+          mode: "DB",
+          route: "DB03R",
+          routeName: "DB → Tung Chung (schedule)",
+          fromStop: placeStop("db-plaza"),
+          toStop: placeStop("tung-chung"),
+          shape: [placeStop("db-plaza"), placeStop("tung-chung")],
+          durationMin: 40,
+          fareHkd: F.dbExternal,
+          trackingMode: "schedule",
+        },
+        {
+          mode: "CTB",
+          route: "S1",
+          routeName: "Airport shuttle / connecting bus (check on day)",
+          fromStop: placeStop("tung-chung"),
+          toStop: placeStop("airport"),
+          shape: [placeStop("tung-chung"), placeStop("airport")],
+          durationMin: 15,
+          fareHkd: 4,
+          notes: "Confirm S1/E-routes on the day. Citybus A/E routes also serve Airport from Island/Kowloon.",
+          trackingMode: "schedule",
+        },
+      ],
+      tags: ["airport", "schedule"],
+    },
+  ];
+}
+
+function exchangeToWanChai(): TripOption[] {
+  return [
+    {
+      id: "ex-wc-walk",
+      summary: "Walk harbourfront / Citybus along Connaught–Hennessy",
+      totalMin: 20,
+      totalFareHkd: F.islandShort,
+      legs: [
+        {
+          mode: "CTB",
+          route: "5B",
+          routeName: "Citybus 5B / island corridor",
+          direction: "inbound",
+          fromStop: placeStop("exchange-square"),
+          toStop: placeStop("wan-chai"),
+          shape: [
+            placeStop("exchange-square"),
+            placeStop("admiralty"),
+            placeStop("wan-chai"),
+          ],
+          durationMin: 18,
+          fareHkd: F.islandShort,
+          eta: { operator: "CTB", stopId: "001124", route: "5B" },
+          trackingMode: "live-eta",
+        },
+      ],
+      tags: ["bus", "live-eta"],
+    },
+    centralToWanChaiMtr(),
+  ];
+}
+
+function tstToCentral(): TripOption[] {
+  return [
+    {
+      id: "tst-central-star",
+      summary: "Star Ferry TST → Central (schedule)",
+      totalMin: 15,
+      totalFareHkd: 5,
+      legs: [
+        {
+          mode: "FERRY",
+          route: "Star-Ferry",
+          routeName: "Star Ferry",
+          fromStop: sp("tst-star", "TST Star Ferry Pier", 22.294, 114.1685),
+          toStop: sp("cen-star", "Central Star Ferry Pier", 22.2865, 114.1608),
+          shape: [
+            sp("tst-star", "TST Star Ferry Pier", 22.294, 114.1685),
+            sp("cen-star", "Central Star Ferry Pier", 22.2865, 114.1608),
+          ],
+          durationMin: 10,
+          fareHkd: 5,
+          notes: "Classic harbour crossing — schedule based.",
+          trackingMode: "schedule",
+        },
+        {
+          mode: "WALK",
+          fromStop: sp("cen-star", "Central Star Ferry Pier", 22.2865, 114.1608),
+          toStop: placeStop("central-mtr"),
+          shape: [
+            sp("cen-star", "Central Star Ferry Pier", 22.2865, 114.1608),
+            placeStop("central-mtr"),
+          ],
+          durationMin: 5,
+          fareHkd: 0,
+          trackingMode: "walk",
+        },
+      ],
+      tags: ["ferry", "scenic"],
+    },
+    {
+      id: "tst-central-mtr",
+      summary: "MTR Tsuen Wan Line → Central",
+      totalMin: 12,
+      totalFareHkd: F.mtrCross,
+      legs: [
+        {
+          mode: "MTR",
+          route: "TWL",
+          routeName: "Tsuen Wan Line",
+          fromStop: placeStop("tsim-sha-tsui"),
+          toStop: placeStop("central-mtr"),
+          shape: [
+            placeStop("tsim-sha-tsui"),
+            placeStop("admiralty"),
+            placeStop("central-mtr"),
+          ],
+          durationMin: 10,
+          fareHkd: F.mtrCross,
+          trackingMode: "mtr-hint",
+        },
+      ],
+      tags: ["mtr", "fast"],
+    },
+  ];
+}
+
+/** Pair key helper */
+function pairKey(a: string, b: string) {
+  return `${a}→${b}`;
+}
+
+const PAIR_BUILDERS: Record<string, () => TripOption[]> = {
+  [pairKey("db-plaza", "central-pier3")]: () => [
+    dbToCentralFerry(),
+    {
+      id: "db-central-via-tc",
+      summary: "DB bus → Tung Chung → MTR → Central (backup)",
+      totalMin: 85,
+      totalFareHkd: F.dbExternal + F.mtrTungChung,
+      legs: dbToTungChung()[0].legs.concat([
+        {
+          mode: "MTR",
+          route: "TCL",
+          routeName: "Tung Chung Line → Hong Kong / Central",
+          fromStop: placeStop("tung-chung"),
+          toStop: placeStop("central-mtr"),
+          shape: [placeStop("tung-chung"), placeStop("sunny-bay"), placeStop("central-mtr")],
+          durationMin: 35,
+          fareHkd: F.mtrTungChung,
+          trackingMode: "mtr-hint",
+        },
+      ]),
+      tags: ["backup"],
+    },
+  ],
+  [pairKey("db-ferry", "central-pier3")]: () => [dbToCentralFerry()],
+  [pairKey("db-park", "central-pier3")]: () => [dbToCentralFerry()],
+  [pairKey("db-plaza", "exchange-square")]: () => [
+    {
+      ...dbToCentralFerry(),
+      id: "db-exchange",
+      summary: "DB Ferry → Central Pier + walk to Exchange Square",
+      totalMin: 42,
+      legs: [
+        ...dbToCentralFerry().legs,
+        {
+          mode: "WALK",
+          fromStop: placeStop("central-pier3"),
+          toStop: placeStop("exchange-square"),
+          shape: [placeStop("central-pier3"), placeStop("exchange-square")],
+          durationMin: 6,
+          fareHkd: 0,
+          notes: "Short walk from Pier 3 to Exchange Square bus terminus",
+          trackingMode: "walk",
+        },
+      ],
+    },
+  ],
+  [pairKey("central-pier3", "db-plaza")]: () => [centralToDbFerry()],
+  [pairKey("central-pier3", "db-ferry")]: () => [centralToDbFerry()],
+  [pairKey("exchange-square", "db-plaza")]: () => [
+    {
+      id: "ex-db",
+      summary: "Walk to Pier 3 + ferry to DB",
+      totalMin: 42,
+      totalFareHkd: F.dbFerry,
+      legs: [
+        {
+          mode: "WALK",
+          fromStop: placeStop("exchange-square"),
+          toStop: placeStop("central-pier3"),
+          shape: [placeStop("exchange-square"), placeStop("central-pier3")],
+          durationMin: 6,
+          fareHkd: 0,
+          trackingMode: "walk",
+        },
+        ...centralToDbFerry().legs,
+      ],
+      tags: ["ferry"],
+    },
+  ],
+  [pairKey("central-mtr", "wan-chai")]: () => [centralToWanChaiMtr(), centralToWanChaiBus()],
+  [pairKey("wan-chai", "central-mtr")]: () => [wanChaiToCentralMtr()],
+  [pairKey("central-pier3", "wan-chai")]: () => [
+    {
+      id: "pier-wc",
+      summary: "Walk / bus from Central piers to Wan Chai",
+      totalMin: 22,
+      totalFareHkd: F.islandShort,
+      legs: [
+        {
+          mode: "WALK",
+          fromStop: placeStop("central-pier3"),
+          toStop: placeStop("exchange-square"),
+          shape: [placeStop("central-pier3"), placeStop("exchange-square")],
+          durationMin: 6,
+          fareHkd: 0,
+          trackingMode: "walk",
+        },
+        ...centralToWanChaiBus().legs,
+      ],
+      tags: ["bus"],
+    },
+    centralToWanChaiMtr(),
+  ],
+  [pairKey("sunny-bay", "mong-kok")]: sunnyBayToMongKok,
+  [pairKey("mong-kok", "sunny-bay")]: mongKokToSunnyBay,
+  [pairKey("sunny-bay", "sham-shui-po")]: sunnyBayToSsp,
+  [pairKey("sham-shui-po", "sunny-bay")]: () => [
+    {
+      id: "ssp-sunny-mtr",
+      summary: "MTR → Tung Chung Line → Sunny Bay",
+      totalMin: 28,
+      totalFareHkd: F.mtrTungChung,
+      legs: [
+        {
+          mode: "MTR",
+          route: "TCL",
+          routeName: "To Sunny Bay",
+          fromStop: placeStop("sham-shui-po"),
+          toStop: placeStop("sunny-bay"),
+          shape: [
+            placeStop("sham-shui-po"),
+            sp("nam-cheong", "Nam Cheong", 22.3246, 114.1537),
+            placeStop("sunny-bay"),
+          ],
+          durationMin: 28,
+          fareHkd: F.mtrTungChung,
+          trackingMode: "mtr-hint",
+        },
+      ],
+      tags: ["mtr"],
+    },
+  ],
+  [pairKey("db-plaza", "tung-chung")]: dbToTungChung,
+  [pairKey("db-plaza", "airport")]: dbToAirport,
+  [pairKey("exchange-square", "wan-chai")]: exchangeToWanChai,
+  [pairKey("tsim-sha-tsui", "central-mtr")]: tstToCentral,
+};
+
+/** Nearby place clusters for fuzzy corridor matching */
+const CLUSTERS: Record<string, string[]> = {
+  db: ["db-plaza", "db-ferry", "db-north", "db-park"],
+  central: ["central-pier3", "exchange-square", "central-mtr", "admiralty"],
+  wanchai: ["wan-chai", "exhibition", "causeway-bay"],
+};
+
+function clusterOf(id: string): string | null {
+  for (const [k, ids] of Object.entries(CLUSTERS)) {
+    if (ids.includes(id)) return k;
+  }
+  return null;
+}
+
+export function planTrips(from: Place, to: Place): TripOption[] {
+  if (from.id === to.id) return [];
+
+  const direct = PAIR_BUILDERS[pairKey(from.id, to.id)];
+  if (direct) return direct().sort((a, b) => a.totalMin - b.totalMin);
+
+  // Cluster-level fallbacks
+  const fc = clusterOf(from.id);
+  const tc = clusterOf(to.id);
+  if (fc === "db" && tc === "central") return PAIR_BUILDERS[pairKey("db-plaza", "central-pier3")]();
+  if (fc === "central" && tc === "db") return PAIR_BUILDERS[pairKey("central-pier3", "db-plaza")]();
+  if (fc === "central" && tc === "wanchai") return PAIR_BUILDERS[pairKey("central-mtr", "wan-chai")]();
+  if (fc === "wanchai" && tc === "central") return PAIR_BUILDERS[pairKey("wan-chai", "central-mtr")]();
+
+  // Generic cross-area hint
+  return [
+    {
+      id: `generic-${from.id}-${to.id}`,
+      summary: `Suggested: local bus/MTR toward ${to.name} (limited corridor data)`,
+      totalMin: 45,
+      totalFareHkd: 12,
+      legs: [
+        {
+          mode: "WALK",
+          fromStop: placeStop(from.id),
+          toStop: placeStop(to.id),
+          shape: [placeStop(from.id), placeStop(to.id)],
+          durationMin: 45,
+          fareHkd: 12,
+          notes:
+            "This pair is outside the curated MVP corridors. Try favourites (DB↔Central, Sunny Bay↔MK/SSP) or pick nearby hubs. KMB/Citybus ETA still works when you lock a bus leg with operator stop IDs.",
+          trackingMode: "schedule",
+        },
+      ],
+      tags: ["fallback"],
+    },
+  ];
+}
