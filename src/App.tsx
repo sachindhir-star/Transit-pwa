@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { enrichTripShapes } from "./api/enrichShape";
 import { DbBusMap } from "./components/DbBusMap";
 import { FavouritesBar } from "./components/FavouritesBar";
+import { LegDeparture } from "./components/LegDeparture";
 import { PlacePicker } from "./components/PlacePicker";
 import { RouteMap } from "./components/RouteMap";
 import { TripOptions } from "./components/TripOptions";
 import { DATA_SOURCES } from "./data/sources";
 import { getPlace } from "./data/places";
 import { useFavourites } from "./hooks/useFavourites";
-import { useLiveEta } from "./hooks/useLiveEta";
+import { useLiveEtasForLegs } from "./hooks/useLiveEta";
 import { planTripsAsync } from "./lib/hkPlanner";
 import type { Place, TripOption } from "./types";
 import "./App.css";
@@ -53,12 +54,19 @@ export default function App() {
     };
   }, [from, to]);
 
-  const activeLeg = selected?.legs[legIndex] ?? null;
-  const { etas, status, error } = useLiveEta(activeLeg);
+  const legEtaStates = useLiveEtasForLegs(selected?.legs ?? []);
+  const activeEta = legEtaStates[legIndex] ?? {
+    etas: [],
+    status: "idle" as const,
+    error: null,
+  };
 
   const lockTrip = async (opt: TripOption) => {
     setSelected(opt);
-    setLegIndex(0);
+    const firstBus = opt.legs.findIndex(
+      (l) => l.mode === "CTB" || l.mode === "KMB" || l.mode === "DB",
+    );
+    setLegIndex(firstBus >= 0 ? firstBus : 0);
     setEnriching(true);
     try {
       const enriched = await enrichTripShapes(opt);
@@ -189,6 +197,33 @@ export default function App() {
               </div>
               <p className="locked-sum">{selected.summary}</p>
               {enriching && <p className="note">Loading road-following route shape…</p>}
+
+              <div className="locked-departs">
+                {selected.legs.map((leg, i) => {
+                  const st = legEtaStates[i] ?? {
+                    etas: [],
+                    status: "idle" as const,
+                    error: null,
+                  };
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      className={`leg-depart-wrap${i === legIndex ? " selected" : ""}`}
+                      onClick={() => setLegIndex(i)}
+                    >
+                      <LegDeparture
+                        leg={leg}
+                        etas={st.etas}
+                        status={st.status}
+                        error={st.error}
+                        active={i === legIndex}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="leg-tabs">
                 {selected.legs.map((leg, i) => (
                   <button
@@ -202,20 +237,11 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <div className="leg-detail">
-                <p>
-                  <strong>Board:</strong> {activeLeg?.fromStop.name}
-                </p>
-                <p>
-                  <strong>Alight:</strong> {activeLeg?.toStop.name}
-                </p>
-                {activeLeg?.notes && <p className="note">{activeLeg.notes}</p>}
-              </div>
               <RouteMap
                 trip={selected}
-                etas={etas}
-                etaStatus={status}
-                etaError={error}
+                etas={activeEta.etas}
+                etaStatus={activeEta.status}
+                etaError={activeEta.error}
                 activeLegIndex={legIndex}
               />
             </section>
