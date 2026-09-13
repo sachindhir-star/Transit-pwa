@@ -24,6 +24,16 @@ export const PLACES: Place[] = [
     kind: "pier",
   },
   {
+    id: "nim-shue-wan",
+    name: "Nim Shue Wan Landing Steps",
+    nameZh: "稔樹灣登岸處",
+    area: "DB",
+    lat: 22.29322,
+    lng: 114.02159,
+    aliases: ["nim shue wan", "nsw", "marina drive pier", "db kaito", "稔樹灣"],
+    kind: "pier",
+  },
+  {
     id: "db-north",
     name: "DB North (Siena)",
     nameZh: "愉景灣北",
@@ -166,6 +176,28 @@ export const PLACES: Place[] = [
     lng: 114.1489,
     aliases: ["lai chi kok", "荔枝角"],
     kind: "mtr",
+  },
+
+  // Lantau islands / piers
+  {
+    id: "peng-chau-pier",
+    name: "Peng Chau Public Pier",
+    nameZh: "坪洲公眾碼頭",
+    area: "Lantau",
+    lat: 22.287,
+    lng: 114.0385,
+    aliases: ["peng chau", "pengchau", "坪洲"],
+    kind: "pier",
+  },
+  {
+    id: "mui-wo-pier",
+    name: "Mui Wo Landing Steps",
+    nameZh: "梅窩登岸處",
+    area: "Lantau",
+    lat: 22.2645,
+    lng: 114.0015,
+    aliases: ["mui wo", "muiwo", "silver mine bay", "梅窩"],
+    kind: "pier",
   },
 
   // Lantau

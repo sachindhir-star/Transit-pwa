@@ -1,0 +1,73 @@
+{
+  "version": "20240902",
+  "source": "Peng Chau Kaito Ltd — Discovery Bay–Mui Wo (via Peng Chau) licensed ferry",
+  "sourceUrl": "https://en.pengchaukaito.com/ferry-timetable-fare",
+  "tdUrl": "https://www.td.gov.hk/en/transport_in_hong_kong/public_transport/ferries/service_details/index.html",
+  "effectiveDate": "2024-09-02",
+  "operator": "Peng Chau Kaito Ltd",
+  "boardingNote": "DB boarding is Nim Shue Wan Landing Steps (Marina Drive) — not DB Plaza Ferry Pier.",
+  "note": "Weekdays (except school holidays) run via Peng Chau Public Pier. Sat/Sun/PH are direct Nim Shue Wan ↔ Mui Wo (not via Peng Chau). Confirm on the day with the operator. No open vessel GPS.",
+  "journeyMinDirect": 20,
+  "journeyMinViaPengChau": 35,
+  "piers": {
+    "nim-shue-wan": {
+      "stop": "Nim Shue Wan Landing Steps",
+      "stopId": "nim-shue-wan",
+      "nameZh": "稔樹灣登岸處"
+    },
+    "peng-chau-pier": {
+      "stop": "Peng Chau Public Pier",
+      "stopId": "peng-chau-pier",
+      "nameZh": "坪洲公眾碼頭"
+    },
+    "mui-wo-pier": {
+      "stop": "Mui Wo Landing Steps",
+      "stopId": "mui-wo-pier",
+      "nameZh": "梅窩登岸處"
+    }
+  },
+  "weekdayViaPengChau": {
+    "dayLabel": "Mon – Fri (via Peng Chau · except school holidays)",
+    "sailings": [
+      {
+        "id": "wd-am-to-db",
+        "label": "Mui Wo → Peng Chau → Nim Shue Wan",
+        "direction": "to-db",
+        "viaPengChau": true,
+        "departures": [
+          { "stopId": "mui-wo-pier", "time": "07:20", "role": "origin" },
+          { "stopId": "peng-chau-pier", "time": "07:45", "role": "via", "note": "Departs Peng Chau toward Discovery Bay" },
+          { "stopId": "nim-shue-wan", "time": null, "role": "terminus", "approxArrival": "08:00" }
+        ]
+      },
+      {
+        "id": "wd-pm-to-mui-wo",
+        "label": "Nim Shue Wan → Peng Chau → Mui Wo",
+        "direction": "to-mui-wo",
+        "viaPengChau": true,
+        "departures": [
+          { "stopId": "nim-shue-wan", "time": "15:15", "role": "origin" },
+          { "stopId": "peng-chau-pier", "time": "15:25", "role": "via", "note": "Departs Peng Chau toward Mui Wo" },
+          { "stopId": "mui-wo-pier", "time": null, "role": "terminus", "approxArrival": "15:50" }
+        ]
+      }
+    ]
+  },
+  "weekendDirect": {
+    "dayLabel": "Sat / Sun & PH (direct · not via Peng Chau)",
+    "fromNimShueWan": {
+      "sat": ["07:15", "10:45", "13:15", "16:15", "18:15", "20:05"],
+      "sunPh": ["08:45", "10:45", "11:45", "13:15", "15:05", "16:15", "18:15", "20:05"]
+    },
+    "fromMuiWo": {
+      "sat": ["07:45", "11:15", "13:45", "16:45", "18:45", "20:30"],
+      "sunPh": ["09:15", "11:15", "12:15", "13:45", "15:35", "16:45", "18:45", "20:30"]
+    },
+    "remarks": {
+      "satOnlyFromDb": ["07:15"],
+      "sunPhOnlyFromDb": ["08:45", "11:45", "15:05"],
+      "satOnlyFromMuiWo": ["07:45"],
+      "sunPhOnlyFromMuiWo": ["09:15", "12:15", "15:35"]
+    }
+  }
+}

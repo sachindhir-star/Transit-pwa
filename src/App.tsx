@@ -1,139 +1,35 @@
-import { useEffect, useState } from "react";
-import {
-  enrichTripShapes,
-  enrichWalkLegIfNeeded,
-  isWalkChord,
-  markWalksApproximate,
-} from "./api/enrichShape";
+import { useState } from "react";
 import { DbBusMap } from "./components/DbBusMap";
-import { FavouritesBar } from "./components/FavouritesBar";
-import { LegDeparture } from "./components/LegDeparture";
-import { PlacePicker } from "./components/PlacePicker";
-import { RouteMap } from "./components/RouteMap";
-import { TripOptions } from "./components/TripOptions";
+import { DbFerryMap } from "./components/DbFerryMap";
 import { DATA_SOURCES } from "./data/sources";
-import { getPlace } from "./data/places";
-import { useFavourites } from "./hooks/useFavourites";
-import { useLiveEtasForLegs } from "./hooks/useLiveEta";
-import { planTripsAsync } from "./lib/hkPlanner";
-import type { Place, TripOption } from "./types";
 import "./App.css";
 
-type Tab = "plan" | "db" | "about";
+type Tab = "buses" | "ferries" | "about";
 
 export default function App() {
-  const { favourites, resetDefaults } = useFavourites();
-  const [tab, setTab] = useState<Tab>("plan");
-  const [from, setFrom] = useState<Place | null>(() => getPlace("db-plaza") ?? null);
-  const [to, setTo] = useState<Place | null>(() => getPlace("central-pier3") ?? null);
-  const [options, setOptions] = useState<TripOption[]>([]);
-  const [planStatus, setPlanStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [selected, setSelected] = useState<TripOption | null>(null);
-  const [legIndex, setLegIndex] = useState(0);
-  const [enriching, setEnriching] = useState(false);
-
-  useEffect(() => {
-    if (!from || !to) {
-      setOptions([]);
-      setPlanStatus("idle");
-      return;
-    }
-    let cancelled = false;
-    setPlanStatus("loading");
-    setOptions([]);
-    setSelected(null);
-    planTripsAsync(from, to)
-      .then((opts) => {
-        if (cancelled) return;
-        setOptions(opts);
-        setPlanStatus("ready");
-      })
-      .catch((e) => {
-        console.warn("plan failed", e);
-        if (cancelled) return;
-        setOptions([]);
-        setPlanStatus("error");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [from, to]);
-
-  const legEtaStates = useLiveEtasForLegs(selected?.legs ?? []);
-  const activeEta = legEtaStates[legIndex] ?? {
-    etas: [],
-    status: "idle" as const,
-    error: null,
-  };
-
-  const lockTrip = async (opt: TripOption) => {
-    // Show trip immediately with walks labeled approximate until OSRM foot returns.
-    setSelected(markWalksApproximate(opt));
-    // Prefer first transit leg (ferry before connecting bus) so timetable shows immediately.
-    const firstTransit = opt.legs.findIndex(
-      (l) => l.mode !== "WALK" && l.trackingMode !== "walk",
-    );
-    setLegIndex(firstTransit >= 0 ? firstTransit : 0);
-    setEnriching(true);
-    try {
-      const enriched = await enrichTripShapes(opt);
-      setSelected(enriched);
-    } catch (e) {
-      console.warn("enrich failed", e);
-      setSelected(markWalksApproximate(opt));
-    } finally {
-      setEnriching(false);
-    }
-  };
-
-  const selectLeg = (i: number) => {
-    setLegIndex(i);
-    const trip = selected;
-    if (!trip) return;
-    const leg = trip.legs[i];
-    if (!leg || (leg.mode !== "WALK" && leg.trackingMode !== "walk")) return;
-    if (!isWalkChord(leg)) return;
-    setEnriching(true);
-    enrichWalkLegIfNeeded(leg)
-      .then((next) => {
-        setSelected((prev) => {
-          if (!prev) return prev;
-          const legs = prev.legs.slice();
-          legs[i] = next;
-          return { ...prev, legs };
-        });
-      })
-      .catch((e) => console.warn("walk re-snap failed", e))
-      .finally(() => setEnriching(false));
-  };
-
-  const swap = () => {
-    setFrom(to);
-    setTo(from);
-    setSelected(null);
-  };
+  const [tab, setTab] = useState<Tab>("buses");
 
   return (
     <div className="app">
       <header className="top">
         <div>
           <p className="eyebrow">Discovery Bay · Hong Kong</p>
-          <h1>HK Transit</h1>
+          <h1>DB Transportation App</h1>
         </div>
         <nav className="tabs">
           <button
             type="button"
-            className={tab === "plan" ? "active" : ""}
-            onClick={() => setTab("plan")}
+            className={tab === "buses" ? "active" : ""}
+            onClick={() => setTab("buses")}
           >
-            Plan
+            Buses
           </button>
           <button
             type="button"
-            className={tab === "db" ? "active" : ""}
-            onClick={() => setTab("db")}
+            className={tab === "ferries" ? "active" : ""}
+            onClick={() => setTab("ferries")}
           >
-            DB buses
+            Ferries
           </button>
           <button
             type="button"
@@ -162,126 +58,23 @@ export default function App() {
           </ul>
           <p className="note">
             Adult Octopus fares are estimates. Never invent GPS — live dots only when an ETA feed
-            exists, and they are labeled ETA-inferred. Citybus/KMB trip options use stop proximity +
-            route-stop matching from open data (HK-wide). DBTSL routes use eta.dbtsl.com stop ETAs +
-            OSRM roads (no vehicle GPS).
+            exists, and they are labeled ETA-inferred. DB buses use eta.dbtsl.com stop ETAs + OSRM
+            roads (no vehicle GPS). Ferries are timetable-only with honest sea corridors — no
+            vessel GPS.
           </p>
         </main>
-      ) : tab === "db" ? (
+      ) : tab === "ferries" ? (
         <main className="main">
-          <DbBusMap />
+          <DbFerryMap />
         </main>
       ) : (
         <main className="main">
-          <FavouritesBar
-            favourites={favourites}
-            onReset={resetDefaults}
-            onPick={(f, t) => {
-              setFrom(f);
-              setTo(t);
-              setSelected(null);
-            }}
-          />
-
-          <section className="planner">
-            <PlacePicker
-              label="From"
-              value={from}
-              onChange={(p) => {
-                setFrom(p);
-                setSelected(null);
-              }}
-              excludeId={to?.id}
-            />
-            <button type="button" className="swap" onClick={swap} aria-label="Swap">
-              ↕
-            </button>
-            <PlacePicker
-              label="To"
-              value={to}
-              onChange={(p) => {
-                setTo(p);
-                setSelected(null);
-              }}
-              excludeId={from?.id}
-            />
-          </section>
-
-          {planStatus === "loading" && (
-            <p className="note">Matching Citybus/KMB stops &amp; routes across Hong Kong…</p>
-          )}
-          {planStatus === "error" && (
-            <p className="note">Could not load open-data bus index. Try again shortly.</p>
-          )}
-
-          <TripOptions options={options} selectedId={selected?.id ?? null} onSelect={lockTrip} />
-
-          {selected && (
-            <section className="locked">
-              <div className="locked-head">
-                <h2>Locked route</h2>
-                <button type="button" className="linkish" onClick={() => setSelected(null)}>
-                  Clear
-                </button>
-              </div>
-              <p className="locked-sum">{selected.summary}</p>
-              {enriching && <p className="note">Loading road / footpath geometry…</p>}
-
-              <div className="locked-departs">
-                {selected.legs.map((leg, i) => {
-                  const st = legEtaStates[i] ?? {
-                    etas: [],
-                    status: "idle" as const,
-                    error: null,
-                  };
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      className={`leg-depart-wrap${i === legIndex ? " selected" : ""}`}
-                      onClick={() => selectLeg(i)}
-                    >
-                      <LegDeparture
-                        leg={leg}
-                        etas={st.etas}
-                        status={st.status}
-                        error={st.error}
-                        active={i === legIndex}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="leg-tabs">
-                {selected.legs.map((leg, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    className={i === legIndex ? "active" : ""}
-                    onClick={() => selectLeg(i)}
-                  >
-                    {leg.mode}
-                    {leg.route ? ` ${leg.route}` : ""}
-                  </button>
-                ))}
-              </div>
-              <RouteMap
-                trip={selected}
-                etas={activeEta.etas}
-                etaStatus={activeEta.status}
-                etaError={activeEta.error}
-                activeLegIndex={legIndex}
-                enriching={enriching}
-              />
-            </section>
-          )}
+          <DbBusMap />
         </main>
       )}
 
       <footer className="foot">
-        HK-wide Citybus/KMB open-data · DB ferry first-class · Sample: DB → Pacific Place · MK → Wan
-        Chai
+        Discovery Bay buses &amp; ferries · Timetable-first · No invented GPS
       </footer>
     </div>
   );

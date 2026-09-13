@@ -10,9 +10,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "apple-touch-icon.png"],
       manifest: {
-        name: "HK Transit — Discovery Bay",
-        short_name: "HK Transit",
-        description: "Phone-first Hong Kong transit planner for Discovery Bay & beyond",
+        name: "DB Transportation App",
+        short_name: "DB Transport",
+        description: "Discovery Bay buses and ferries — timetable-first",
         theme_color: "#c45c26",
         background_color: "#faf6f1",
         display: "standalone",
@@ -26,7 +26,7 @@ export default defineConfig({
       },
       workbox: {
         // Bump cacheId whenever board/SW assets must invalidate phone precaches.
-        cacheId: "hk-transit-board-v18",
+        cacheId: "hk-transit-board-v19",
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,

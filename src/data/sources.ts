@@ -28,6 +28,13 @@ export const DATA_SOURCES = {
     liveGps: false,
     note: "Timetable-first: embedded departures from Transport Department licensed ferry service details (Central – Discovery Bay, effective 26 May 2026). Locked ferry legs show next clock times from the boarding pier (e.g. “Next ferry leaves DB Ferry Pier at 10:05pm (9 mins)”). Map uses a multi-point sea corridor through Victoria Harbour — not a pier-to-pier land chord. No open vessel GPS. Confirm on the day via DB Transport / visitdiscoverybay.com.",
   },
+  dbKaito: {
+    name: "DB ↔ Mui Wo / Peng Chau (Peng Chau Kaito)",
+    url: "https://en.pengchaukaito.com/ferry-timetable-fare",
+    coverage: "Nim Shue Wan Landing Steps (Marina Drive) ↔ Peng Chau Public Pier ↔ Mui Wo Landing Steps",
+    liveGps: false,
+    note: "Direct licensed kaito (not a Central transfer). Weekdays (except school holidays) via Peng Chau; Sat/Sun/PH usually direct Nim Shue Wan ↔ Mui Wo. DB boarding is Nim Shue Wan — not Plaza Ferry Pier. Embedded published times from Peng Chau Kaito / TD (effective 2 Sep 2024). Map uses sea corridors only — never land chords. No vessel GPS.",
+  },
   mtr: {
     name: "MTR (connecting hint)",
     url: "https://www.mtr.com.hk/",

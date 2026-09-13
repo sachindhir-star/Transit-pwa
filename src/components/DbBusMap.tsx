@@ -322,7 +322,7 @@ export function DbBusMap() {
     <section className="db-bus">
       <div className="db-bus-head">
         <div className="db-bus-head-row">
-          <h2>DB buses</h2>
+          <h2>Buses</h2>
           <div className="db-live-controls">
             {live.agoLabel ? (
               <span className="db-updated" aria-live="polite">
