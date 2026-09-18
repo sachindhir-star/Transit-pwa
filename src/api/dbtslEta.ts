@@ -1,7 +1,7 @@
 import { fetchJson } from "./client";
 import type { LatLng } from "./roadGeometry";
 import { formatEtaLabel } from "../lib/formatEta";
-import { placeApproachingStop } from "../lib/placeAlong";
+import { placeApproachingStopByIndex } from "../lib/placeAlong";
 import type { InferredBus, StopPoint } from "../types";
 
 /** Official DBTSL ETA site used inside the Discovery Bay app WebView. CORS is open. */
@@ -264,7 +264,7 @@ export function inferDbtslBusesFromStops(
       lat: hit.stop.latitude,
       lng: hit.stop.longitude,
       etaMinutes: hit.minutes,
-      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop}${destBit} · ETA-inferred (not GPS)`,
+      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop}${destBit} · Estimated from next-stop ETA — not live GPS`,
       mode: "eta-inferred",
       nextStopName: hit.stop.stop,
       destinationLabel: dest,
@@ -285,16 +285,23 @@ export function inferDbtslBusesOnRoad(
   const byTrip = nextStopsByTrip(stops);
   const buses: InferredBus[] = [];
   const dest = opts?.destinationLabel;
+  // Build once: monotonic along-distances so loop routes (C9 Plaza×2) place
+  // on the active leg — never snap geographic-nearest to an earlier Plaza pass.
+  const stopLatLngs = stops.map((s) => ({
+    lat: s.latitude,
+    lng: s.longitude,
+  }));
   for (const [trip, hit] of byTrip) {
     const { plate } = parseTripCode(trip);
     const next = { lat: hit.stop.latitude, lng: hit.stop.longitude };
-    const prevStop = hit.stopIndex > 0 ? stops[hit.stopIndex - 1] : null;
-    const prev = prevStop
-      ? { lat: prevStop.latitude, lng: prevStop.longitude }
-      : null;
     const placed =
       road.length >= 2
-        ? placeApproachingStop(road, next, prev, hit.minutes)
+        ? placeApproachingStopByIndex(
+            road,
+            stopLatLngs,
+            hit.stopIndex,
+            hit.minutes,
+          )
         : null;
     const lat = placed?.lat ?? next.lat;
     const lng = placed?.lng ?? next.lng;
@@ -305,7 +312,7 @@ export function inferDbtslBusesOnRoad(
       lat,
       lng,
       etaMinutes: hit.minutes,
-      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop}${destBit} · ETA-inferred (not GPS)`,
+      label: `${plate} · ${formatEtaLabel({ etaIso: hit.etaIso, minutes: hit.minutes }) ?? `${hit.minutes} mins`} → ${hit.stop.stop}${destBit} · Estimated from next-stop ETA — not live GPS`,
       mode: "eta-inferred",
       heading,
       nextStopName: hit.stop.stop,

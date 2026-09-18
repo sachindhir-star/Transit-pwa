@@ -80,8 +80,80 @@ export function nearestDistanceAlong(line: LatLng[], target: LatLng): number {
 }
 
 /**
+ * Like nearestDistanceAlong, but only consider polyline vertices at or after
+ * `minAlongM`. Used for loop routes that revisit the same stop (e.g. DB Plaza
+ * twice on C9) so the second visit snaps forward, never backward.
+ */
+export function nearestDistanceAlongFrom(
+  line: LatLng[],
+  target: LatLng,
+  minAlongM: number,
+): number {
+  if (line.length === 0) return 0;
+  const cum = cumulative(line);
+  const total = cum[cum.length - 1];
+  const floor = Math.min(Math.max(0, minAlongM), total);
+  let startI = 0;
+  while (startI < line.length - 1 && cum[startI] < floor) startI++;
+  let bestI = startI;
+  let bestD = Infinity;
+  for (let i = startI; i < line.length; i++) {
+    const d = distM(line[i], target);
+    if (d < bestD) {
+      bestD = d;
+      bestI = i;
+    }
+  }
+  return Math.max(floor, cum[bestI]);
+}
+
+/**
+ * Along-distance for each stop in route order, forced monotonic:
+ * each ≥ previous. When the road revisits an area (duplicate Plaza), the later
+ * stop advances further along the polyline instead of snapping to the first visit.
+ */
+export function monotonicDistancesAlong(road: LatLng[], stops: LatLng[]): number[] {
+  const out: number[] = [];
+  let minAlong = 0;
+  for (const stop of stops) {
+    const d = nearestDistanceAlongFrom(road, stop, minAlong);
+    out.push(d);
+    minAlong = d;
+  }
+  return out;
+}
+
+function placeBetweenAlong(
+  road: LatLng[],
+  prevDist: number,
+  nextDist: number,
+  etaMinutes: number,
+): AlongResult | null {
+  let p = prevDist;
+  let n = nextDist;
+  if (p >= n) {
+    p = Math.max(0, n - 180);
+  }
+  const span = Math.max(40, n - p);
+  // 0 min → ~95% toward next stop; 10+ min → nearer previous
+  const frac = Math.min(0.95, Math.max(0.15, 1 - Math.min(etaMinutes, 12) / 14));
+  const at = p + span * frac;
+  const pos = pointAtDistance(road, at);
+  if (!pos) return null;
+  const ahead = pointAtDistance(road, Math.min(n, at + 25));
+  if (ahead && (ahead.lat !== pos.lat || ahead.lng !== pos.lng)) {
+    return { ...pos, heading: bearingDeg(pos, ahead) };
+  }
+  return pos;
+}
+
+/**
  * Place a bus approaching `next` along `road`, slightly upstream based on ETA.
  * Heading is the road direction toward the next stop.
+ *
+ * Prefer placeApproachingStopByIndex for DBTSL (and any route that may revisit
+ * stops): this geographic nearest can snap a southbound Plaza ETA onto the
+ * northbound Plaza pass on a loop polyline.
  */
 export function placeApproachingStop(
   road: LatLng[],
@@ -98,23 +170,35 @@ export function placeApproachingStop(
   let prevDist = 0;
   if (prev) {
     prevDist = nearestDistanceAlong(road, prev);
-    // If prev maps after next (circular wrap), treat prev as a short back-off
     if (prevDist >= nextDist) {
       prevDist = Math.max(0, nextDist - 180);
     }
   } else {
     prevDist = Math.max(0, nextDist - 180);
   }
-  const span = Math.max(40, nextDist - prevDist);
-  // 0 min → ~95% toward next stop; 10+ min → nearer previous
-  const frac = Math.min(0.95, Math.max(0.15, 1 - Math.min(etaMinutes, 12) / 14));
-  const at = prevDist + span * frac;
-  const pos = pointAtDistance(road, at);
-  if (!pos) return null;
-  // Prefer heading looking ahead toward the next-stop distance
-  const ahead = pointAtDistance(road, Math.min(nextDist, at + 25));
-  if (ahead && (ahead.lat !== pos.lat || ahead.lng !== pos.lng)) {
-    return { ...pos, heading: bearingDeg(pos, ahead) };
+  return placeBetweenAlong(road, prevDist, nextDist, etaMinutes);
+}
+
+/**
+ * Place a bus approaching stops[si] using monotonic along-distances for the
+ * full stop sequence. Correct for circular DB routes (C4/C9/…) where Plaza
+ * (etc.) appears twice on the OSRM polyline.
+ */
+export function placeApproachingStopByIndex(
+  road: LatLng[],
+  stops: LatLng[],
+  stopIndex: number,
+  etaMinutes: number,
+): AlongResult | null {
+  if (!stops.length) return null;
+  const si = Math.max(0, Math.min(stopIndex, stops.length - 1));
+  const next = stops[si];
+  if (road.length < 2) {
+    return { lat: next.lat, lng: next.lng, heading: 0, distanceM: 0 };
   }
-  return pos;
+  const along = monotonicDistancesAlong(road, stops);
+  const nextDist = along[si];
+  const prevDist =
+    si > 0 ? along[si - 1] : Math.max(0, nextDist - 180);
+  return placeBetweenAlong(road, prevDist, nextDist, etaMinutes);
 }

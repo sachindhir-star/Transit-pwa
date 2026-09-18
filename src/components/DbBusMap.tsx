@@ -346,8 +346,8 @@ export function DbBusMap() {
           <strong>From stop</strong> (origin) and direction. When{" "}
           <strong>eta.dbtsl.com</strong> has active trips, a <strong>Live</strong> layer sits on
           top (bus icons, ETAs, C4/C9 column board). If live is empty, the timetable stays — never
-          only “no active trip”. Paths snap to <strong>OSRM</strong> roads; icons are ETA-inferred
-          (no vehicle GPS). Auto-refresh ~20s; GPS suggests nearest stop.
+          only “no active trip”. Paths snap to <strong>OSRM</strong> roads; icons are estimated from next-stop
+          ETA — not live GPS. Auto-refresh ~20s; GPS suggests nearest stop.
         </p>
       </div>
 
@@ -690,7 +690,7 @@ export function DbBusMap() {
               }
             >
               <Popup>
-                <strong>{route.number} · ETA-inferred</strong>
+                <strong>{route.number} · Estimated from next-stop ETA</strong>
                 {bus.destinationLabel ? ` · → ${bus.destinationLabel}` : ""}
                 <br />
                 {bus.label}
@@ -707,7 +707,7 @@ export function DbBusMap() {
                     <br />
                   </>
                 ) : null}
-                <em>Not Live GPS — position from eta.dbtsl.com next-stop ETA on road path</em>
+                <em>Estimated from next-stop ETA — not live GPS</em>
               </Popup>
             </Marker>
           ))}
