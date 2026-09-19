@@ -8,6 +8,15 @@ import {
   type RouteBoardDef,
 } from "../lib/busColumnBoard";
 import { useDbtslLive } from "../hooks/useDbtslLive";
+import {
+  detectTimetableLiveGap,
+  formatLivePlateCount,
+} from "../lib/liveBusUx";
+import {
+  getTodaysSchedule,
+  nextScheduledDepartures,
+} from "../lib/dbtslTimetable";
+import { DB_BUS_ROUTES } from "../data/dbBuses";
 
 function StopRow({ stop }: { stop: ColumnStopEta }) {
   return (
@@ -75,6 +84,28 @@ export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
     [live.stops, def],
   );
 
+  const headwayMin = useMemo(() => {
+    const r = DB_BUS_ROUTES.find((x) => x.number === routeNumber);
+    return r?.headwayMin ?? 12;
+  }, [routeNumber]);
+
+  const liveCountLine = useMemo(
+    () => formatLivePlateCount(columns.map((c) => c.plate)),
+    [columns],
+  );
+
+  const timetableGap = useMemo(() => {
+    if (!def) return null;
+    const schedule = getTodaysSchedule(routeNumber);
+    const nextDepartures = nextScheduledDepartures(routeNumber, 8);
+    return detectTimetableLiveGap({
+      liveTripCount: columns.length,
+      schedule,
+      nextDepartures,
+      headwayMin,
+    });
+  }, [def, routeNumber, columns.length, headwayMin]);
+
   if (!def) return null;
 
   const loading = !live.stops && !live.error;
@@ -88,6 +119,13 @@ export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
       <div className="bcb-head">
         <div>
           <h3 className="bcb-title">{title}</h3>
+          <p
+            className={`bcb-live-count ${columns.length === 0 ? "empty" : columns.length === 1 ? "one" : "multi"}`}
+            role="status"
+            aria-live="polite"
+          >
+            <strong>{loading && columns.length === 0 ? "Live: …" : liveCountLine}</strong>
+          </p>
           <p className="note">
             One column per active bus · all stops from get_bus_stops (
             {stopCount || "…"} in route order
@@ -119,6 +157,12 @@ export function BusColumnBoard({ routeNumber }: { routeNumber: string }) {
           </button>
         </div>
       </div>
+
+      {timetableGap ? (
+        <div className="db-tt-live-gap bcb-gap" role="note">
+          {timetableGap.note}
+        </div>
+      ) : null}
 
       {columns.length === 0 ? (
         <p className="bcb-empty">{def.emptyLabel}</p>

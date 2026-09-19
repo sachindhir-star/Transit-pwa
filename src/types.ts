@@ -77,6 +77,8 @@ export interface InferredBus {
   etaMinutes: number;
   label: string;
   mode: "eta-inferred";
+  /** Vehicle plate parsed from trip_code when available. */
+  plate?: string;
   /** Degrees clockwise from north — road heading toward next stop. */
   heading?: number;
   nextStopName?: string;

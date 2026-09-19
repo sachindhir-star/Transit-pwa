@@ -43,6 +43,11 @@ import {
   listFromStops,
   nextScheduledDepartures,
 } from "../lib/dbtslTimetable";
+import {
+  detectTimetableLiveGap,
+  formatLiveBusCount,
+  separateOverlappingBusMarkers,
+} from "../lib/liveBusUx";
 import { useGeolocation } from "../hooks/useGeolocation";
 import type { InferredBus, StopPoint } from "../types";
 
@@ -194,7 +199,9 @@ export function DbBusMap() {
   const buses: InferredBus[] = useMemo(() => {
     if (!live.directions?.length) return [];
     const road = roadLine.length >= 2 ? roadLine : shapeStops;
-    return inferDbtslBusesAllDirections(live.directions, road);
+    const raw = inferDbtslBusesAllDirections(live.directions, road);
+    // One icon per trip_code; nudge only when two land within ~25m.
+    return separateOverlappingBusMarkers(raw, road);
   }, [live.directions, roadLine, shapeStops]);
 
   /** Always-visible published schedule (timetable-first baseline). */
@@ -207,6 +214,25 @@ export function DbBusMap() {
     [route.number, now, fromStopId],
   );
   const hkNow = useMemo(() => hkParts(now), [now]);
+
+  /** Loud live trip_code count + plates (never invents buses). */
+  const liveCountLine = useMemo(() => formatLiveBusCount(buses), [buses]);
+
+  /**
+   * When feed shows 0–1 trip_code but timetable implies another departure
+   * within ~1 headway (C4/C9 circular especially), explain the missing icon.
+   */
+  const timetableGap = useMemo(
+    () =>
+      detectTimetableLiveGap({
+        liveTripCount: buses.length,
+        schedule: todaysSchedule,
+        nextDepartures: timetableNext,
+        headwayMin: route.headwayMin,
+        now,
+      }),
+    [buses.length, todaysSchedule, timetableNext, route.headwayMin, now],
+  );
 
   /**
    * Header pill: live next ETA when trips exist; else next timetable clock
@@ -443,6 +469,19 @@ export function DbBusMap() {
         <div className={`db-track-banner ${statusBanner.mode}`}>
           <span>{statusBanner.text}</span>
         </div>
+        <div
+          className={`db-live-count ${buses.length === 0 ? "empty" : buses.length === 1 ? "one" : "multi"}`}
+          role="status"
+          aria-live="polite"
+        >
+          <strong>{liveCountLine}</strong>
+          <span className="db-live-count-src">eta.dbtsl.com trip_codes only</span>
+        </div>
+        {timetableGap ? (
+          <div className="db-tt-live-gap" role="note">
+            {timetableGap.note}
+          </div>
+        ) : null}
         {buses.length > 0 ? (
           <div className="db-live-layer" role="status">
             <div className="db-live-layer-title">Live · eta.dbtsl.com</div>
