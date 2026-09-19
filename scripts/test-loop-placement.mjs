@@ -1,16 +1,22 @@
+#!/usr/bin/env bun
+/**
+ * Requires Bun (imports TypeScript from src/). Node cannot run this file.
+ * Prefer: bun run test:qa
+ */
+if (typeof process !== "undefined" && !process.versions?.bun) {
+  console.error("Run with bun (not node): bun scripts/test-loop-placement.mjs");
+  console.error("Or: bun run test:qa");
+  process.exit(1);
+}
+
+const { nearestDistanceAlong, monotonicDistancesAlong, placeApproachingStop, placeApproachingStopByIndex, pointAtDistance } = await import("../src/lib/placeAlong.ts");
+
 /**
  * Proves loop-route placement: a polyline that visits Plaza twice must place
  * "next = second Plaza visit" on the later pass, not snap to the first.
  *
  * Run: bun scripts/test-loop-placement.mjs
  */
-import {
-  nearestDistanceAlong,
-  monotonicDistancesAlong,
-  placeApproachingStop,
-  placeApproachingStopByIndex,
-  pointAtDistance,
-} from "../src/lib/placeAlong.ts";
 
 // Toy loop: Capridge → Plaza(N-bound) → North → Plaza(S-bound) → Costa → Capridge.
 const PLAZA = { lat: 22.296, lng: 114.016 };

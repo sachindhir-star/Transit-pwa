@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:loop": "bun scripts/test-loop-placement.mjs",
+    "test:trips": "bun scripts/test-two-trip-codes.mjs",
+    "test:ferry-paths": "bun scripts/print-ferry-sea-paths.mjs",
+    "test:qa": "bun scripts/test-loop-placement.mjs && bun scripts/test-two-trip-codes.mjs && bun scripts/print-ferry-sea-paths.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

@@ -1,3 +1,20 @@
+#!/usr/bin/env bun
+/**
+ * Requires Bun (imports TypeScript from src/). Node cannot run this file.
+ * Prefer: bun run test:qa
+ */
+if (typeof process !== "undefined" && !process.versions?.bun) {
+  console.error("Run with bun (not node): bun scripts/test-two-trip-codes.mjs");
+  console.error("Or: bun run test:qa");
+  process.exit(1);
+}
+
+const { inferDbtslBusesOnRoad } = await import("../src/api/dbtslEta.ts");
+const { listActiveTrips } = await import("../src/lib/dbSuggest.ts");
+const { buildBusColumns, C9_BOARD } = await import("../src/lib/busColumnBoard.ts");
+const { separateOverlappingBusMarkers } = await import("../src/lib/liveBusUx.ts");
+const { formatLiveBusCount, detectTimetableLiveGap } = await import("../src/lib/liveBusUx.ts");
+
 /**
  * Sanity: two synthetic trip_codes in stop ETA arrays →
  * inferDbtslBusesOnRoad / listActiveTrips / buildBusColumns all length 2.
@@ -5,11 +22,6 @@
  *
  * Run: bun scripts/test-two-trip-codes.mjs
  */
-import { inferDbtslBusesOnRoad } from "../src/api/dbtslEta.ts";
-import { listActiveTrips } from "../src/lib/dbSuggest.ts";
-import { buildBusColumns, C9_BOARD } from "../src/lib/busColumnBoard.ts";
-import { separateOverlappingBusMarkers } from "../src/lib/liveBusUx.ts";
-import { formatLiveBusCount, detectTimetableLiveGap } from "../src/lib/liveBusUx.ts";
 
 const now = Date.now();
 const t1 = new Date(now + 3 * 60_000).toISOString();
