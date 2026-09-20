@@ -66,6 +66,7 @@ def slug_label(stop: str) -> tuple[str, str]:
         (r"DB North Plaza", "north-plaza", "North Plaza"),
         (r"Coastline", "coastline", "Coastline"),
         (r"Crestmont", "crestmont", "Crestmont"),
+        (r"Caperidge", "caperidge", "Caperidge"),
         (r"Headland.*Drive|Headland Village - Headland", "headland", "Headland"),
         (r"Seabee", "seabee", "Seabee"),
         (r"Marine View", "marine-view", "Marine View"),

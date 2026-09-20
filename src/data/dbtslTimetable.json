@@ -1,7 +1,7 @@
 {
-  "version": "2026091102",
+  "version": "20260918002",
   "source": "https://dbapp-api-prd.hkricloud.com/transport_version/getData",
-  "mediaBase": "https://dbapp-media-prd.hkricloud.com/schedules_and_fares/version_2026091102/",
+  "mediaBase": "https://dbapp-media-prd.hkricloud.com/schedules_and_fares/version_20260918002/",
   "note": "Official DBTSL Discovery Bay app schedule CSVs (bus_line_schedule → bus_line_schedule_time). Published clock times are keyed by timetable From / terminus (bus_line_route), not every intermediate stop. fromStops lists each published From when the CSV has one; for circular village routes 1 & 6 an approx village table is derived (+3 min per official remark) because the CSV has no separate village schedule.",
   "holidays": [
     {
@@ -1958,9 +1958,9 @@
           }
         },
         {
-          "id": "crestmont",
-          "label": "Crestmont",
-          "stop": "Block 41, Crestmont Villa (4A51)",
+          "id": "caperidge",
+          "label": "Caperidge",
+          "stop": "Block 41, Caperidge Drive (4A51)",
           "endPoint": "DB North Plaza",
           "published": true,
           "dayLabels": {
