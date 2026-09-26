@@ -412,7 +412,16 @@ export function DbBusMap() {
               {suggestion.busHeadingLabel
                 ? suggestion.busHeadingLabel
                 : activeTrip
-                  ? `trip ${activeTrip.plate} toward ${activeTrip.upcoming[0]?.name ?? "next stop"}`
+                  ? (() => {
+                      const liveBus = buses.find(
+                        (b) => b.id === `dbtsl-${activeTrip.tripCode}`,
+                      );
+                      const leg =
+                        liveBus?.destinationLabel ??
+                        activeTrip.upcoming[0]?.name ??
+                        "next stop";
+                      return `trip ${activeTrip.plate} toward ${leg}`;
+                    })()
                   : todaysSchedule
                     ? "No live bus right now — see timetable below"
                     : "No active trip right now"}
@@ -496,8 +505,13 @@ export function DbBusMap() {
                     {bus.etaMinutes <= 0 ? "Due" : `${bus.etaMinutes} min`}
                   </span>
                   <span className="db-live-tag">live</span>
-                  {bus.nextStopName ? (
+                  {bus.destinationLabel ? (
+                    <span className="db-live-next">→ {bus.destinationLabel}</span>
+                  ) : bus.nextStopName ? (
                     <span className="db-live-next">→ {bus.nextStopName}</span>
+                  ) : null}
+                  {bus.destinationLabel && bus.nextStopName ? (
+                    <span className="db-live-next-stop"> next {bus.nextStopName}</span>
                   ) : null}
                 </li>
               ))}
@@ -515,7 +529,7 @@ export function DbBusMap() {
                 {formatDeparturesFromHeadline(todaysSchedule)}
               </div>
               <div className="db-timetable-origin-dir">
-                Route {route.number} toward {todaysSchedule.endPoint}
+                Timetable · Route {route.number} toward {todaysSchedule.endPoint}
               </div>
               <div className="db-timetable-origin-meta">
                 {todaysSchedule.dayLabel}

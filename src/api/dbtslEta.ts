@@ -1,5 +1,9 @@
 import { fetchJson } from "./client";
 import type { LatLng } from "./roadGeometry";
+import {
+  circularLegLabel,
+  isCircularDbDest,
+} from "../lib/circularLeg";
 import { formatEtaLabel } from "../lib/formatEta";
 import { placeApproachingStopByIndex } from "../lib/placeAlong";
 import type { InferredBus, StopPoint } from "../types";
@@ -216,15 +220,19 @@ export async function fetchDbtslAllDirections(
   return results;
 }
 
-interface TripHit {
+export interface TripHit {
   stopIndex: number;
   stop: DbtslStopEta;
   etaIso: string;
   minutes: number;
 }
 
-/** Per active trip: next stop with the soonest future ETA. */
-function nextStopsByTrip(stops: DbtslStopEta[]): Map<string, TripHit> {
+/**
+ * Per active trip: next stop with the soonest ETA still within the live window.
+ * Keeps ETAs in (-2, 0] (due / just-due) — only drops older than 2 minutes past.
+ * Prefer lower stop index when minute values tie so we never skip a due stop.
+ */
+export function nextStopsByTrip(stops: DbtslStopEta[]): Map<string, TripHit> {
   const byTrip = new Map<string, TripHit>();
   for (let si = 0; si < stops.length; si++) {
     const stop = stops[si];
@@ -233,15 +241,42 @@ function nextStopsByTrip(stops: DbtslStopEta[]): Map<string, TripHit> {
       const etaIso = stop.time[i];
       if (!trip || !etaIso) continue;
       const minutes = minutesUntil(etaIso);
+      // Retain due / slightly-late ETAs; drop only when clearly stale.
       if (minutes == null || minutes < -2) continue;
       const prev = byTrip.get(trip);
       const mins = Math.max(0, minutes);
-      if (!prev || mins < prev.minutes) {
+      if (
+        !prev ||
+        mins < prev.minutes ||
+        (mins === prev.minutes && si < prev.stopIndex)
+      ) {
         byTrip.set(trip, { stopIndex: si, stop, etaIso, minutes: mins });
       }
     }
   }
   return byTrip;
+}
+
+/** Resolve live destinationLabel — circular C4/C9 use active-leg landmark. */
+export function resolveLiveDestinationLabel(
+  stops: DbtslStopEta[],
+  tripCode: string,
+  nextStopIndex: number,
+  apiDestLabel?: string,
+): string | undefined {
+  const { route } = parseTripCode(tripCode);
+  const routeNum = (route || "").toUpperCase();
+  const circular =
+    routeNum === "C4" ||
+    routeNum === "C9" ||
+    isCircularDbDest(apiDestLabel);
+  if (circular) {
+    const leg = circularLegLabel(routeNum || "C4", stops, nextStopIndex);
+    if (leg) return leg;
+    // Never surface useless "DB Circle" on live markers.
+    if (isCircularDbDest(apiDestLabel)) return undefined;
+  }
+  return apiDestLabel;
 }
 
 /**
@@ -255,9 +290,14 @@ export function inferDbtslBusesFromStops(
 ): InferredBus[] {
   const byTrip = nextStopsByTrip(stops);
   const buses: InferredBus[] = [];
-  const dest = opts?.destinationLabel;
   for (const [trip, hit] of byTrip) {
     const { plate } = parseTripCode(trip);
+    const dest = resolveLiveDestinationLabel(
+      stops,
+      trip,
+      hit.stopIndex,
+      opts?.destinationLabel,
+    );
     const destBit = dest ? ` · → ${dest}` : "";
     buses.push({
       id: `dbtsl-${trip}`,
@@ -285,7 +325,6 @@ export function inferDbtslBusesOnRoad(
 ): InferredBus[] {
   const byTrip = nextStopsByTrip(stops);
   const buses: InferredBus[] = [];
-  const dest = opts?.destinationLabel;
   // Build once: monotonic along-distances so loop routes (C9 Plaza×2) place
   // on the active leg — never snap geographic-nearest to an earlier Plaza pass.
   const stopLatLngs = stops.map((s) => ({
@@ -294,6 +333,12 @@ export function inferDbtslBusesOnRoad(
   }));
   for (const [trip, hit] of byTrip) {
     const { plate } = parseTripCode(trip);
+    const dest = resolveLiveDestinationLabel(
+      stops,
+      trip,
+      hit.stopIndex,
+      opts?.destinationLabel,
+    );
     const next = { lat: hit.stop.latitude, lng: hit.stop.longitude };
     const placed =
       road.length >= 2

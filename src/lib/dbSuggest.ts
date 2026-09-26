@@ -259,11 +259,13 @@ export function buildLocationSuggestion(opts: {
       ? buses.find((b) => b.id === `dbtsl-${trip.tripCode}`) ?? null
       : buses[0] ?? null;
   const busHeading =
-    matchingBus?.nextStopName
-      ? `toward ${matchingBus.nextStopName}`
-      : headingLabel(matchingBus?.heading) != null
-        ? `${headingLabel(matchingBus?.heading)}`
-        : null;
+    matchingBus?.destinationLabel
+      ? `toward ${matchingBus.destinationLabel}`
+      : matchingBus?.nextStopName
+        ? `toward ${matchingBus.nextStopName}`
+        : headingLabel(matchingBus?.heading) != null
+          ? `${headingLabel(matchingBus?.heading)}`
+          : null;
 
   const walkMeters = Math.round(bestD);
   const walkMins =
